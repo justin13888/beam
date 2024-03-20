@@ -10,7 +10,9 @@
     "@elysiajs/cors": "^1.0.2",
     "@elysiajs/server-timing": "^1.0.2",
     "@elysiajs/swagger": "^1.0.2",
-    "elysia": "latest"
+    "elysia": "latest",
+    "pino": "^8.19.0",
+    "pino-pretty": "^10.3.1"
   },
   "devDependencies": {
     "bun-types": "latest"

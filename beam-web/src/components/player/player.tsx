@@ -87,5 +87,8 @@ const Player = (props: PlayerProps) => {
     </MediaPlayer>
   );
 };
+// TODO: Implement multiple resolution, speed control, display buffer progress, and more
+// TODO: Add statistics menu to cover
+// TODO: Add prop to support previious and next track buttons
 
 export default Player;

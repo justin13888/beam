@@ -4,5 +4,21 @@ export default {
 	theme: {
 		extend: {},
 	},
-	plugins: [],
+	plugins: [
+		require('tailwindcss-animate'),
+		require('@vidstack/react/tailwind.cjs')({
+		  prefix: 'media',
+		}),
+		customVariants,
+	  ],
 }
+
+// TODO: Borrowed from Vidstack player example. See if it could be removed.
+function customVariants({ addVariant, matchVariant }) {
+	// Strict version of `.group` to help with nesting.
+	matchVariant('parent-data', (value) => `.parent[data-${value}] > &`);
+  
+	addVariant('hocus', ['&:hover', '&:focus-visible']);
+	addVariant('group-hocus', ['.group:hover &', '.group:focus-visible &']);
+  }
+  

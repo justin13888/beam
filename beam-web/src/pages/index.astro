@@ -1,13 +1,47 @@
 ---
-import Layout from '../layouts/Layout.astro';
+import Layout from "../layouts/Layout.astro";
+import Player from "../components/player/player.tsx";
+
+import { type TrackProps } from "@vidstack/react";
+// TODO: Work on this
+export const textTracks: readonly TrackProps[] = [
+  // Subtitles
+  {
+    src: "https://media-files.vidstack.io/sprite-fight/subs/english.vtt",
+    label: "English",
+    language: "en-US",
+    kind: "subtitles",
+    default: true,
+  },
+  {
+    src: "https://media-files.vidstack.io/sprite-fight/subs/spanish.vtt",
+    label: "Spanish",
+    language: "es-ES",
+    kind: "subtitles",
+  },
+  // Chapters
+  {
+    src: "https://media-files.vidstack.io/sprite-fight/chapters.vtt",
+    kind: "chapters",
+    language: "en-US",
+    default: true,
+  },
+];
 ---
 
 <Layout title="Welcome to Astro.">
-	<main>
-		<p>Welcome to Astro. This is the home page.</p>
-	</main>
+  <main>
+    <p>Welcome to Astro. This is the home page.</p>
+    <div class="max-w-6xl mx-auto">
+      <Player
+        src="https://stream.mux.com/VZtzUzGRv02OhRnZCxcNg49OilvolTqdnFLEqBsTwaxU/low.mp4"
+        posterSrc="https://image.mux.com/VZtzUzGRv02OhRnZCxcNg49OilvolTqdnFLEqBsTwaxU/thumbnail.webp?time=268&width=1200"
+        posterAlt="Girl walks into campfire with gnomes surrounding her friend ready for their next meal!"
+        title="Gnome Campfire"
+        thumbnails="https://image.mux.com/VZtzUzGRv02OhRnZCxcNg49OilvolTqdnFLEqBsTwaxU/storyboard.vtt"
+        textTracks={textTracks}
+        client:only
+      />
+    </div>
+  </main>
 </Layout>
-
-<style>
-	
-</style>

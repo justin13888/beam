@@ -1,6 +1,6 @@
-import * as jose from 'jose';
-import { envs } from '@/env';
-import { JWT_ALGORITHM as alg } from './constants';
+import { envs } from "@/env";
+import * as jose from "jose";
+import { JWT_ALGORITHM as alg } from "./constants";
 
 // JWT Implementation notes:
 // - Require token to specify algorithm was used
@@ -13,11 +13,15 @@ import { JWT_ALGORITHM as alg } from './constants';
 // Parse keys from PEM file
 const keyPemFile = Bun.file(envs.JWT_SECRET_PATH);
 if (!(await keyPemFile.exists())) {
-    throw new Error(`Private key file not found: ${keyPemFile}. Check JWT_SECRET_PATH environment variable.`);
+    throw new Error(
+        `Private key file not found: ${keyPemFile}. Check JWT_SECRET_PATH environment variable.`,
+    );
 }
 const pemString = await keyPemFile.text();
-const privateKeyRegex = /-----BEGIN PRIVATE KEY-----[\s\S]*?-----END PRIVATE KEY-----/;
-const publicKeyRegex = /-----BEGIN PUBLIC KEY-----[\s\S]*?-----END PUBLIC KEY-----/;
+const privateKeyRegex =
+    /-----BEGIN PRIVATE KEY-----[\s\S]*?-----END PRIVATE KEY-----/;
+const publicKeyRegex =
+    /-----BEGIN PUBLIC KEY-----[\s\S]*?-----END PUBLIC KEY-----/;
 const privateKeyMatch = pemString.match(privateKeyRegex);
 const publicKeyMatch = pemString.match(publicKeyRegex);
 const pkcs8 = privateKeyMatch ? privateKeyMatch[0] : null;
@@ -31,7 +35,7 @@ if (!spki) {
 
 export const privateKey = await jose.importPKCS8(pkcs8, alg, {
     extractable: true,
-})
+});
 export const publicKey = await jose.importSPKI(spki, alg, {
     extractable: true,
-})
+});

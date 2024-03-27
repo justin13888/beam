@@ -1,4 +1,4 @@
-import { TypeOf, z } from "zod"
+import { TypeOf, z } from "zod";
 
 export const envSchema = z.object({
     NODE_ENV: z.string().default("development"),
@@ -23,12 +23,16 @@ export const envSchema = z.object({
     /**
      * Memory cost of Argon2id in KiB
      */
-    ARGON2ID_MEMORY_COST: z.number().min(2 ** 16) .max(2 ** 32).default(2 ** 16),
+    ARGON2ID_MEMORY_COST: z
+        .number()
+        .min(2 ** 16)
+        .max(2 ** 32)
+        .default(2 ** 16),
     /**
      * Time cost of Argon2id, measured in number of iterations
      */
     ARGON2ID_TIME_COST: z.number().min(1).max(10).default(3),
-})
+});
 
 // declare global {
 //     namespace NodeJS {
@@ -41,18 +45,17 @@ const getEnvs = () => {
         return envSchema.parse(process.env);
     } catch (err) {
         if (err instanceof z.ZodError) {
-            const { fieldErrors } = err.flatten()
+            const { fieldErrors } = err.flatten();
             const errorMessage = Object.entries(fieldErrors)
                 .map(([field, errors]) =>
                     errors ? `${field}: ${errors.join(", ")}` : field,
                 )
-                .join("\n  ")
+                .join("\n  ");
             throw new Error(
                 `Missing environment variables:\n  ${errorMessage}`,
-            )
-        } else {
-            throw err;
+            );
         }
+        throw err;
     }
 };
 

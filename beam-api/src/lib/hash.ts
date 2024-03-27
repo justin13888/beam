@@ -28,7 +28,10 @@ export const hashPassword = async (password: string) => {
  * @param password Password to verify
  * @returns `true` if the digest parameters matches the hash generated from `plain`, otherwise `false`
  */
-export const verifyPassword = async (digest: string, password: Buffer | string) => {
+export const verifyPassword = async (
+    digest: string,
+    password: Buffer | string,
+) => {
     return argon2.verify(digest, password, {
         secret: Buffer.from(envs.ARGON2ID_PEPPER),
     });

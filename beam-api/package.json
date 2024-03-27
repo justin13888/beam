@@ -6,6 +6,8 @@
     "dev": "bun run --watch src/index.ts",
     "build": "bun build src/index.ts",
     "start": "NODE_ENV=production bun src/index.ts",
+    "lint": "bunx @biomejs/biome check .",
+    "lint:fix": "bunx @biomejs/biome check --apply .",
     "db:push": "drizzle-kit push:pg",
     "db:studio": "drizzle-kit studio",
     "gen:jwt": "bun run scripts/gen-jwt.ts"
@@ -31,6 +33,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@biomejs/biome": "1.6.3",
     "@inquirer/prompts": "^4.3.0",
     "@types/validator": "^13.11.9",
     "bun-types": "latest",

@@ -5,3 +5,4 @@ const elysiaLogger = new Elysia()
     .decorate('logger', logger)
 
 export default elysiaLogger;
+// TODO: Implement onError handler

@@ -1,34 +1,20 @@
-import { mysqlEnum, mysqlTableCreator, varbinary } from "drizzle-orm/mysql-core";
 import { USERNAME_MAX_LENGTH, DATABASE_PREFIX as prefix } from "@/lib/constants";
-import {
-  boolean,
-  datetime,
-  index,
-  int,
-  text,
-  timestamp,
-  varchar,
-} from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
+import { boolean, index, pgEnum, pgTableCreator, serial, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 
-export const mysqlTable = mysqlTableCreator((name) => `${prefix}_${name}`);
-export const users = mysqlTable(
-  "users",
-  {
-    username: varchar("username", { length: 255 }).primaryKey(),
-    email: varchar("email", { length: 255 }).unique().notNull(),
-    emailVerified: boolean("email_verified").default(false).notNull(), // TODO: Implement email verification
-    status: mysqlEnum("status", ["active", "deleted", "banned"]).default("active").notNull(),
-    hashed_password: varchar("hashed_password", { length: 255 }).notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").onUpdateNow(),
-    isAdmin: boolean("is_admin").default(false).notNull(),
-  },
-  (t) => ({
-    emailIdx: index("email_idx").on(t.email),
-    usernameIdx: index("username_idx").on(t.username),
-  }),
-);
+export const pgTable = pgTableCreator((name) => `${prefix}_${name}`);
+
+export const accountStatusEnum = pgEnum("account_status", ["active", "inactive", "banned"]);
+// TODO: Implement email verification
+export const users = pgTable('users', {
+  username: varchar('username', { length: USERNAME_MAX_LENGTH }).primaryKey(),
+  email: varchar('email', { length: 255 }).unique().notNull(),
+  status: accountStatusEnum('status').default('active').notNull(),
+  hashedPassword: varchar('hashed_password', { length: 255 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').$onUpdate(() => new Date()),
+  isAdmin: boolean('is_admin').default(false).notNull(),
+});
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -38,9 +24,9 @@ export const userRelations = relations(users, ({ one, many }) => ({
   sessions: many(sessions),
 }));
 
-export const profiles = mysqlTable('profiles', {
-  id: varchar('id', { length: 255 }).primaryKey(),
-  username: varchar('username', { length: 255 }).unique().notNull().references(() => users.username),
+export const profiles = pgTable('profiles', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  username: varchar('username', { length: USERNAME_MAX_LENGTH }).unique().notNull().references(() => users.username),
   fullname: varchar('fullname', { length: 255 }).notNull(),
   // avatar: varchar("avatar", { length: 255 }), // TODO: Review blob or url or base64
 });
@@ -55,18 +41,19 @@ export const profileRelations = relations(profiles, ({ one }) => ({
   }),
 }));
 
-export const sessions = mysqlTable(
-  "sessions",
-  {
+export const osEnum = pgEnum("os", ["windows", "mac", "linux", "android", "ios", "other"]);
+export const loginMethodEnum = pgEnum("login_method", ["password", "qr_code"]);
+
+export const sessions = pgTable("sessions", {
     id: varchar("id", { length: 255 }).primaryKey(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     expiresAt: timestamp("expires_at").notNull(),
     lastUsedAt: timestamp("last_used_at").notNull(),
     username: varchar("username", { length: 255 }).notNull(),
     deviceName: varchar("device_name", { length: 255 }).notNull(),
-    os: mysqlEnum("os", ["windows", "mac", "linux", "android", "ios", "other"]).notNull(),
-    ip: varbinary("ip", { length: 128 }).notNull(),
-    loginMethod: mysqlEnum("login_method", ["password", "qr_code"]).notNull(),
+    os: osEnum("os").notNull(),
+    ip: text("ip").notNull(), // TODO: Change to better type
+    loginMethod: loginMethodEnum("login_method").notNull(),
     revoked: boolean("revoked").default(false).notNull(),
   },
   (t) => ({
@@ -86,18 +73,16 @@ export const sessionRelations = relations(sessions, ({ one }) => ({
   }),
 }));
 
-export const loginHistory = mysqlTable(
-  "login_history",
-  {
-    id: varchar("id", { length: 40 }).primaryKey(),
+export const loginHistory = pgTable("login_history", {
+    id: serial("id").primaryKey(),
     username: varchar("username", { length: 255 }).notNull(),
     timestamp: timestamp("timestamp").notNull().defaultNow(),
-    ip: varbinary("ip", { length: 128 }).notNull(),
-    os: mysqlEnum("os", ["windows", "mac", "linux", "android", "ios", "other"]).notNull(),
+    ip: text("ip").notNull(), // TODO: Change to better type
+    os: osEnum("os").notNull(),
     deviceName: varchar("device_name", { length: 255 }).notNull(),
   },
   (t) => ({
-    usernameIdx: index("username_idx").on(t.username),
+    timestampIdx: index("timestamp_idx").on(t.timestamp),
   }),
 );
 
@@ -110,15 +95,17 @@ export const loginHistoryRelations = relations(loginHistory, ({ one }) => ({
   }),
 }));
 
-export const passwordResetTokens = mysqlTable(
+export const passwordResetTokens = pgTable(
   "password_reset_tokens",
   {
-    id: varchar("id", { length: 40 }).primaryKey(),
+    id: uuid("id").defaultRandom().primaryKey(),
+    token: varchar("token", { length: 255 }).notNull(),
     userId: varchar("user_id", { length: 21 }).notNull(),
-    expiresAt: datetime("expires_at").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
   },
   (t) => ({
-    userIdx: index("user_idx").on(t.userId),
+    tokenIdx: index("token_idx").on(t.token),
+    // userIdx: index("user_idx").on(t.userId),
   }),
 );
 
@@ -131,7 +118,7 @@ export const passwordResetTokenRelations = relations(passwordResetTokens, ({ one
   }),
 }));
 
-export const collections = mysqlTable(
+export const collections = pgTable(
   "collections",
   {
     // ID should only contain lowercase, uppercase, and numbers
@@ -139,7 +126,7 @@ export const collections = mysqlTable(
     name: varchar("name", { length: 255 }).notNull(),
     description: text("description"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").onUpdateNow(),
+    updatedAt: timestamp("updated_at").$onUpdate(() => new Date()),
     // Public collections can be viewed by anyone
     // while private collections are only viewable by the owner
     public: boolean("public").default(false).notNull(),
@@ -154,7 +141,7 @@ export type NewCollection = typeof collections.$inferSelect;
 export type Collection = typeof collections.$inferSelect;
 // TODO: Consider implementing role based visibility of collections
 
-export const media = mysqlTable(
+export const media = pgTable(
   "media",
   {
     // ID should only contain lowercase, uppercase, and numbers
@@ -164,7 +151,7 @@ export const media = mysqlTable(
     description: text("description"),
     type: varchar("type", { length: 10, enum: ["image", "video"] }).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").onUpdateNow(),
+    updatedAt: timestamp("updated_at").$onUpdate(() => new Date()),
     // TODO: Implement other metadata based on TMDB api
   },
   (t) => ({

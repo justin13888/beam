@@ -65,7 +65,7 @@ const login = new Elysia()
         // Verify password
         let passwordMatch = false; // Default value assuming no match
         try {
-            passwordMatch = await verifyPassword(user.hashed_password, password);
+            passwordMatch = await verifyPassword(user.hashedPassword, password);
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : "Unknown";
             throw new InternalServerError(`Error occurred while trying to verify password: ${errorMsg}`);
@@ -78,7 +78,6 @@ const login = new Elysia()
         if (!passwordMatch) {
             // Log failed login attempt
             const l = await db.insert(loginHistory).values({
-                id: randomUUID().toString(),
                 username: user.username,
                 deviceName,
                 os,

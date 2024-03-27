@@ -5,10 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 trap 'cleanup' SIGINT SIGTERM
 cleanup() {
     echo "Stopping containers..."
-    docker stop beam-mysql-dev 
-    # docker stop beam-redis-dev
-    docker rm beam-mysql-dev
-    # docker rm beam-redis-dev
+    docker stop beam-postgres-dev 
+    docker rm beam-postgres-dev
     echo "Containers stopped and removed."
     tmux kill-session -t beamsession
     exit 0
@@ -16,11 +14,8 @@ cleanup() {
 
 cd $SCRIPT_DIR
 
-# Start MySQL in Docker
-docker run --replace --name beam-mysql-dev -e MYSQL_ROOT_PASSWORD=beam -e MYSQL_DATABASE=beam -p 3306:3306 -d mysql:8.0-debian
-
-# # Start Redis in Docker
-# docker run --replace --name beam-redis-dev -p 6379:6379 -d redis:7.2-alpine
+# Start Postgres in Docker
+docker run --replace --name beam-postgres-dev -e POSTGRES_USER=beam -e POSTGRES_PASSWORD=beam -e POSTGRES_DB=beam -p 5432:5432 -d postgres:16
 
 # Start tmux session
 tmux new-session -d -s beamsession -n 'beam-web'

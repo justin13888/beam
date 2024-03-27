@@ -9,9 +9,9 @@ export const envSchema = z.object({
      */
     JWT_SECRET_PATH: z.string(),
     /**
-     * URL of the MySQL server
+     * URL of the PostgresURL server
      */
-    MYSQL_URL: z.string(),
+    POSTGRES_URL: z.string(),
     /**
      * URL of the Redis server
      */

@@ -1,18 +1,8 @@
-import { drizzle } from "drizzle-orm/mysql2";
-import { createPool, type Pool } from "mysql2/promise";
-
+import { drizzle } from 'drizzle-orm/postgres-js'
+import postgres from 'postgres'
 import { envs } from "@/env";
 import * as schema from "./schema";
 
-/**
- * Cache the database connection in development. This avoids creating a new connection on every HMR
- * update.
- */
-const globalForDb = globalThis as unknown as {
-    conn: Pool | undefined;
-  };
-
-const conn = globalForDb.conn ?? createPool({ uri: envs.MYSQL_URL });
-if (envs.NODE_ENV !== "production") globalForDb.conn = conn;
-
-export const db = drizzle(conn, { schema, mode: "default" });
+// Disable prefetch as it is not supported for "Transaction" pool mode 
+const client = postgres(envs.POSTGRES_URL, { prepare: false });
+export const db = drizzle(client, { schema });

@@ -5,9 +5,9 @@ import { DATABASE_PREFIX } from "@/lib/constants";
 export default {
     schema: "src/db/drizzle/schema.ts",
     out: "./drizzle",
-    driver: "mysql2",
+    driver: "pg",
     dbCredentials: {
-        uri: envs.MYSQL_URL,
+        connectionString: envs.POSTGRES_URL,
     },
     tablesFilter: [`${DATABASE_PREFIX}_*`],
 } satisfies Config;

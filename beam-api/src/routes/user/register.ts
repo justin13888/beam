@@ -75,7 +75,7 @@ const register = new Elysia()
     await db.insert(users).values({
         email: normalizedEmail,
         username: normalizedUsername,
-        hashed_password: hashedPassword,
+        hashedPassword: hashedPassword,
     }).execute();
 
     const deviceName = 'Unknown'; // TODO: Ask from user

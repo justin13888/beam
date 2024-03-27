@@ -13,12 +13,14 @@ export const initLogger = (environment: "development" | "production") => {
         options: {
           colorize: true
         }
-      }
+      },
+      level: 'debug',
     });
   } else {
     logger = pino(pino.destination({
       minLength: 4096, // Buffer before writing
-      sync: false // Asynchronous logging
+      sync: false, // Asynchronous logging
+      level: envs.PINO_LOG_LEVEL,
     }));
   }
 

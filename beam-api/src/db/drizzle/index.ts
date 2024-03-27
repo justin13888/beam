@@ -12,7 +12,7 @@ const globalForDb = globalThis as unknown as {
     conn: Pool | undefined;
   };
 
-const conn = globalForDb.conn ?? createPool({ uri: envs.DATABASE_URL });
+const conn = globalForDb.conn ?? createPool({ uri: envs.MYSQL_URL });
 if (envs.NODE_ENV !== "production") globalForDb.conn = conn;
 
 export const db = drizzle(conn, { schema, mode: "default" });

@@ -6,16 +6,17 @@ import users from "./routes/user";
 import { logger } from "./logger";
 import { envs } from "./env";
 import { documentation } from "./swagger";
+import token from "./routes/token";
 
 // Start Elysia
 const app = new Elysia()
-  // .state('JWT_SECRET', envs.JWT_SECRET)
   .use(cors())
   .use(serverTiming())
   .use(swagger({
     documentation,
   }))
   .use(users)
+  .use(token)
   .get("/", () => "Hello from Beam")
   .listen(envs.PORT);
 

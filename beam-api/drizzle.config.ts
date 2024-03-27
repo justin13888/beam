@@ -3,7 +3,7 @@ import { envs } from "@/env";
 import { DATABASE_PREFIX } from "@/lib/constants";
 
 export default {
-    schema: "src/db/schema.ts",
+    schema: "src/db/drizzle/schema.ts",
     out: "./drizzle",
     driver: "mysql2",
     dbCredentials: {

@@ -22,3 +22,11 @@ or
 ```sh
 cargo run
 ```
+
+Default port is 50051.
+
+### Building Docker image
+
+```sh
+docker build -t beam-index .
+```

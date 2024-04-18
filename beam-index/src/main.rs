@@ -1,4 +1,4 @@
-use dotenv::dotenv;
+use dotenvy::dotenv;
 
 use std::future::Future;
 use std::net::SocketAddr;

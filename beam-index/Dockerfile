@@ -11,5 +11,6 @@ RUN adduser -D beam
 COPY --from=builder --chown=beam:beam --chmod=755 /app/target/release/beam-index /usr/local/bin/beam-index
 USER beam
 
+ENV MEDIA_PATH=/media
 EXPOSE 50051
 CMD ["beam-index"]

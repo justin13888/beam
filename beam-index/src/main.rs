@@ -16,7 +16,10 @@ use tokio::time::Duration;
 use tracing::{debug, info};
 
 pub mod config;
+pub mod io;
+
 use config::{Config, Environment};
+use io::scanner::scan_media;
 
 pub mod hello_world {
     tonic::include_proto!("helloworld");
@@ -112,34 +115,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Environment: {:?}", &env);
     info!("Config: {:?}", &config);
 
-    let addr: SocketAddr = config.binding_address;
-    let greeter = MyGreeter::default();
-
-    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
-    health_reporter
-        .set_serving::<GreeterServer<MyGreeter>>()
-        .await; // TODO: Check health checker works
-
-    info!("Listening on {}", addr);
-
-    let server = Server::builder()
-        .trace_fn(|_| tracing::info_span!("beam-index"))
-        .add_service(GreeterServer::new(greeter))
-        .add_service(health_service);
-
-    match listenfd::ListenFd::from_env().take_tcp_listener(0)? {
-        Some(listener) => {
-            listener.set_nonblocking(true)?;
-            let listener = tokio_stream::wrappers::TcpListenerStream::new(
-                tokio::net::TcpListener::from_std(listener)?,
-            );
-
-            server.serve_with_incoming(listener).await?;
-        }
-        None => {
-            server.serve(addr).await?;
-        }
+    println!("A");
+    let max_partial_hash: usize = 64 * 1024 * 1024; // 64MiB
+    let files = scan_media(&config.media_path, 100, max_partial_hash).await;
+    for res in files
+        .iter()
+        .filter_map(|f| f.as_ref().ok())
+        .collect::<Vec<_>>()
+    {
+        println!("{:?}", res);
     }
+
+    // let addr: SocketAddr = config.binding_address;
+    // let greeter = MyGreeter::default();
+
+    // let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+    // health_reporter
+    //     .set_serving::<GreeterServer<MyGreeter>>()
+    //     .await; // TODO: Check health checker works
+
+    // info!("Listening on {}", addr);
+
+    // let server = Server::builder()
+    //     .trace_fn(|_| tracing::info_span!("beam-index"))
+    //     .add_service(GreeterServer::new(greeter))
+    //     .add_service(health_service);
+
+    // match listenfd::ListenFd::from_env().take_tcp_listener(0)? {
+    //     Some(listener) => {
+    //         listener.set_nonblocking(true)?;
+    //         let listener = tokio_stream::wrappers::TcpListenerStream::new(
+    //             tokio::net::TcpListener::from_std(listener)?,
+    //         );
+
+    //         server.serve_with_incoming(listener).await?;
+    //     }
+    //     None => {
+    //         server.serve(addr).await?;
+    //     }
+    // }
 
     Ok(())
 }

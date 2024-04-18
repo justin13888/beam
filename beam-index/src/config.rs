@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, path::PathBuf};
 
 use serde::Deserialize;
 
@@ -47,6 +47,7 @@ pub struct Config {
     pub production_mode: bool,
     pub log_level: LogLevel,
     pub binding_address: SocketAddr,
+    pub media_path: PathBuf,
 }
 
 impl Default for Config {
@@ -56,12 +57,14 @@ impl Default for Config {
                 production_mode: false,
                 log_level: LogLevel::Debug,
                 binding_address: "[::1]:50051".parse().unwrap(),
+                media_path: PathBuf::from("./media"),
             }
         } else {
             Self {
                 production_mode: true,
                 log_level: LogLevel::Warn,
                 binding_address: "[::1]:50051".parse().unwrap(),
+                media_path: PathBuf::from("./media"),
             }
         }
     }
@@ -81,6 +84,9 @@ impl Config {
         if let Some(binding_address) = env.binding_address {
             s.binding_address = binding_address;
         }
+        if let Some(media_path) = env.media_path {
+            s.media_path = media_path;
+        }
 
         Ok(s)
     }
@@ -92,6 +98,7 @@ pub struct Environment {
     pub production_mode: Option<bool>,
     pub log_level: Option<LogLevel>,
     pub binding_address: Option<SocketAddr>,
+    pub media_path: Option<PathBuf>,
 }
 
 impl Environment {

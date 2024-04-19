@@ -3,12 +3,10 @@ use std::{
     sync::Arc,
 };
 
-use axum::{middleware, routing, Router};
+use axum::{middleware, Router};
 use http::Method;
 use listenfd::ListenFd;
 use metrics::start_metrics_server;
-use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
-use std::future::ready;
 use tokio::net::TcpListener;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
@@ -21,7 +19,7 @@ use utoipa_rapidoc::RapiDoc;
 use utoipa_redoc::{Redoc, Servable};
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::{metrics::track_metrics, todo::Store};
+use crate::{metrics::track_metrics, todo::todo_router};
 
 mod metrics;
 mod todo;
@@ -84,7 +82,6 @@ async fn start_main_server() {
         // allow requests from any origin
         .allow_origin(Any);
 
-    let store = Arc::new(Store::default());
     // TODO: Implement versioning
     let app = Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
@@ -94,16 +91,7 @@ async fn start_main_server() {
         .merge(RapiDoc::new("/api-docs/openapi.json").path("/rapidoc"))
         // Alternative to above
         // .merge(RapiDoc::with_openapi("/api-docs/openapi2.json", ApiDoc::openapi()).path("/rapidoc"))
-        .route(
-            "/todo",
-            routing::get(todo::list_todos).post(todo::create_todo),
-        )
-        .route("/todo/search", routing::get(todo::search_todos))
-        .route(
-            "/todo/:id",
-            routing::put(todo::mark_done).delete(todo::delete_todo),
-        )
-        .with_state(store)
+        .merge(todo_router())
         .layer(cors)
         .route_layer(middleware::from_fn(track_metrics));
 

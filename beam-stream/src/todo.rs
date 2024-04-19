@@ -3,15 +3,25 @@ use std::sync::Arc;
 use axum::{
     extract::{Path, Query, State},
     response::IntoResponse,
-    Json,
+    routing, Json,
 };
 use hyper::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use utoipa::{IntoParams, ToSchema};
 
+pub fn todo_router() -> axum::Router {
+    let store = Arc::new(Store::default());
+
+    axum::Router::new()
+        .route("/todo", routing::get(list_todos).post(create_todo))
+        .route("/todo/search", routing::get(search_todos))
+        .route("/todo/:id", routing::put(mark_done).delete(delete_todo))
+        .with_state(store)
+}
+
 /// In-memory todo store
-pub(super) type Store = Mutex<Vec<Todo>>;
+type Store = Mutex<Vec<Todo>>;
 
 /// Item to do.
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
@@ -46,7 +56,7 @@ pub(super) enum TodoError {
         (status = 200, description = "List all todos successfully", body = [Todo])
     )
 )]
-pub(super) async fn list_todos(State(store): State<Arc<Store>>) -> Json<Vec<Todo>> {
+async fn list_todos(State(store): State<Arc<Store>>) -> Json<Vec<Todo>> {
     let todos = store.lock().await.clone();
 
     Json(todos)
@@ -54,7 +64,7 @@ pub(super) async fn list_todos(State(store): State<Arc<Store>>) -> Json<Vec<Todo
 
 /// Todo search query
 #[derive(Deserialize, IntoParams)]
-pub(super) struct TodoSearchQuery {
+struct TodoSearchQuery {
     /// Search by value. Search is incase sensitive.
     value: String,
     /// Search by `done` status.
@@ -74,7 +84,7 @@ pub(super) struct TodoSearchQuery {
         (status = 200, description = "List matching todos by query", body = [Todo])
     )
 )]
-pub(super) async fn search_todos(
+async fn search_todos(
     State(store): State<Arc<Store>>,
     query: Query<TodoSearchQuery>,
 ) -> Json<Vec<Todo>> {
@@ -84,8 +94,7 @@ pub(super) async fn search_todos(
             .await
             .iter()
             .filter(|todo| {
-                todo.value.to_lowercase() == query.value.to_lowercase()
-                    && todo.done == query.done
+                todo.value.to_lowercase() == query.value.to_lowercase() && todo.done == query.done
             })
             .cloned()
             .collect(),
@@ -104,10 +113,7 @@ pub(super) async fn search_todos(
         (status = 409, description = "Todo already exists", body = TodoError)
     )
 )]
-pub(super) async fn create_todo(
-    State(store): State<Arc<Store>>,
-    Json(todo): Json<Todo>,
-) -> impl IntoResponse {
+async fn create_todo(State(store): State<Arc<Store>>, Json(todo): Json<Todo>) -> impl IntoResponse {
     let mut todos = store.lock().await;
 
     todos
@@ -148,7 +154,7 @@ pub(super) async fn create_todo(
         ("api_key" = [])
     )
 )]
-pub(super) async fn mark_done(
+async fn mark_done(
     Path(id): Path<i32>,
     State(store): State<Arc<Store>>,
     headers: HeaderMap,
@@ -188,7 +194,7 @@ pub(super) async fn mark_done(
         ("api_key" = [])
     )
 )]
-pub(super) async fn delete_todo(
+async fn delete_todo(
     Path(id): Path<i32>,
     State(store): State<Arc<Store>>,
     headers: HeaderMap,

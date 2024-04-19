@@ -1,9 +1,7 @@
-use std::{
-    net::{Ipv4Addr, SocketAddr},
-    sync::Arc,
-};
+use std::net::{Ipv4Addr, SocketAddr};
 
 use axum::{middleware, Router};
+use dotenvy::dotenv;
 use http::Method;
 use listenfd::ListenFd;
 use metrics::start_metrics_server;
@@ -19,29 +17,54 @@ use utoipa_rapidoc::RapiDoc;
 use utoipa_redoc::{Redoc, Servable};
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::{metrics::track_metrics, todo::todo_router};
+use crate::{
+    config::{Config, Environment},
+    metrics::track_metrics,
+    todo::todo_router,
+};
 
+mod config;
 mod metrics;
 mod todo;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Load color-eyre
+    color_eyre::install()?;
+
+    // Load .env
+    dotenv().ok();
+
+    // Load config
+    let env = Environment::from_env()?;
+    let config = Config::with_env(env.clone())?;
+
     // Initialize tracing subscriber
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "beam_stream=debug,tower_http=debug".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init(); // TODO: implement based on env
+    let subscriber = tracing_subscriber::registry().with(
+        tracing_subscriber::EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| "beam_stream=debug,tower_http=debug".into()),
+    );
+    match &config.production_mode {
+        true => subscriber
+            .with(tracing_subscriber::fmt::layer().json())
+            .init(),
+        false => subscriber
+            .with(tracing_subscriber::fmt::layer().pretty())
+            .init(),
+    };
 
-    let metrics_address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8081));
+    info!("Environment: {:?}", &env);
+    info!("Config: {:?}", &config);
 
-    let (_main_server, _metrics_server) =
-        tokio::join!(start_main_server(), start_metrics_server(&metrics_address));
+    let (_main_server, _metrics_server) = tokio::join!(
+        start_main_server(&config.binding_address),
+        start_metrics_server(&config.metrics_binding_address)
+    );
+
+    Ok(())
 }
 
-async fn start_main_server() {
+async fn start_main_server(address: &SocketAddr) {
     // Define the OpenAPI documentation
     #[derive(OpenApi)]
     #[openapi(
@@ -94,8 +117,6 @@ async fn start_main_server() {
         .merge(todo_router())
         .layer(cors)
         .route_layer(middleware::from_fn(track_metrics));
-
-    let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8080));
 
     let mut listenfd = ListenFd::from_env();
     let listener = match listenfd.take_tcp_listener(0).unwrap() {

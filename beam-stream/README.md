@@ -20,7 +20,13 @@ or
 cargo watch -x run
 ```
 
-<!-- TODO: Add setup and technical info -->
+Default port is 8080. Prometheus metrics port is 8081.
+
+### Building Docker image
+
+```sh
+docker build -t beam-stream .
+```
 
 ## License
 

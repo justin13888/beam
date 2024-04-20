@@ -113,7 +113,7 @@ pub fn task_schedule_router() -> Router {
         .with_state(store)
 }
 
-/// Get Task Schedule item from in-memory storage.
+/// Get Task Schedule
 #[utoipa::path(
     get,
     path = "/task/schedule",
@@ -127,7 +127,7 @@ async fn get_schedule(State(store): State<Arc<Store>>) -> Json<TaskSchedule> {
     Json(tasks)
 }
 
-/// Update Task Schedule item from in-memory storage.
+/// Update Task Schedule
 #[utoipa::path(
     patch,
     path = "/task/schedule",

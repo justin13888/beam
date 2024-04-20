@@ -17,6 +17,8 @@ use tokio::sync::Mutex;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::utils::SortDirection;
+
 pub trait GenericTask {
     fn uuid(&self) -> &Uuid;
     fn timestamp(&self) -> &DateTime<Utc>;
@@ -203,28 +205,22 @@ pub struct TaskSearchQuery {
     // TODO: ^^ Validate that clients can't abuse with a bunch of duplicate values ^^
 
     // Sort by
-    sort: Option<TaskSearchQuerySortBy>,
+    sort: Option<TaskSearchQuerySort>,
     // TODO: Implement cursor based pagination
 }
 
-#[derive(Deserialize, Serialize)]
-struct TaskSearchQuerySortBy {
+#[derive(Deserialize, Serialize, ToSchema)]
+pub struct TaskSearchQuerySort {
     uuid: Option<SortDirection>,
     timestamp: Option<SortDirection>,
     trigger: Option<SortDirection>,
     status: Option<SortDirection>,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub enum SortDirection {
-    Asc,
-    Desc,
-}
-
 /// Search Tasks by query params.
 ///
 /// Search `Task`s by query params and return matching `Task`s.
-#[utoipa::path( // TODO: Move query to request body
+#[utoipa::path(
     post,
     path = "/task/search",
     request_body = TaskSearchQuery,

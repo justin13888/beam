@@ -19,6 +19,8 @@ use tokio::sync::Mutex;
 use url::Url;
 use utoipa::ToSchema;
 
+use crate::utils::{DateFilter, SortDirection};
+
 #[derive(Serialize, Deserialize, ToSchema, PartialEq, Eq, Debug, Clone)]
 pub struct MediaLibrary(Vec<MediaItem>);
 
@@ -126,21 +128,21 @@ pub fn media_router() -> Router {
     path = "/media/{id}",
     responses(
         (status = 200, description = "MediaItem found", body = MediaItem),
-        (status = 404, description = "MediaItem not found", body = TaskError, example = json!(MediaItemError::NotFound(String::from("id = abc"))))
+        (status = 404, description = "MediaItem not found", body = MediaItemError, example = json!(MediaItemError::NotFound(String::from("id = abc"))))
     ),
     params(
         ("id" = string, Path, description = "Media Item ID", example = "abc")
     )
 )]
 async fn get_media(Path(id): Path<String>, State(store): State<Arc<Store>>) -> impl IntoResponse {
-    let tasks = store.lock().await;
+    let media = store.lock().await;
 
     // Find MediaItem by id
-    let result = tasks.0.iter().find(|&task| task.id() == &id);
+    let result = media.0.iter().find(|&media| media.id() == &id);
 
     // Return response
     match result {
-        Some(task) => (StatusCode::OK, Json(task)).into_response(),
+        Some(media) => (StatusCode::OK, Json(media)).into_response(),
         None => (
             StatusCode::NOT_FOUND,
             Json(MediaItemError::NotFound(format!("id = {id}"))),
@@ -149,12 +151,33 @@ async fn get_media(Path(id): Path<String>, State(store): State<Arc<Store>>) -> i
     }
 }
 
+#[derive(Deserialize, Serialize, ToSchema)]
+pub struct MediaItemFilter {
+    name: Option<SortDirection>,
+    rating: Option<SortDirection>,
+    date_added: Option<SortDirection>,
+    age_rating: Option<Vec<String>>, // TODO: Implement enum for specific ratings
+    /// List of years
+    release_date: Option<Vec<i32>>,
+}
+
+#[derive(Deserialize, Serialize, ToSchema)]
+pub struct MediaItemSort {
+    name: Option<SortDirection>,
+    rating: Option<SortDirection>,
+    date_added: Option<SortDirection>,
+    date_updated: Option<SortDirection>,
+    date_watched: Option<SortDirection>,
+    age_rating: Option<SortDirection>,
+    release_date: Option<SortDirection>,
+}
+
 #[derive(Serialize, Deserialize, ToSchema, PartialEq, Eq, Debug, Clone)]
 pub struct WatchHistory {
     pub id: String,
     pub user_id: String,
     // #[serde(serialize_with = "serialize_episode_map")]
-    pub progress: Option<HashMap<Episode, VideoProgress>>,
+    pub progress: Option<HashMap<Episode, WatchProgress>>,
     /// List of paths to all versions of the movie
     pub movie: Vec<PathBuf>,
 }
@@ -233,9 +256,15 @@ impl<'de> Deserialize<'de> for Episode {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, PartialEq, Eq, Debug, Clone)]
-pub struct VideoProgress {
-    pub progress: u32,
-    pub last_watched: DateTime<Utc>,
+pub enum WatchProgress {
+    Unwatched,
+    Partial {
+        progress: u8,
+        last_watched: DateTime<Utc>,
+    },
+    Watched {
+        last_watched: DateTime<Utc>,
+    },
 }
 
 /// Get related MediaItems for some MediaItem ID
@@ -244,7 +273,7 @@ pub struct VideoProgress {
     path = "/media/{id}/related",
     responses(
         (status = 200, description = "MediaItem found", body = Vec<MediaItem>),
-        (status = 404, description = "MediaItem not found", body = TaskError, example = json!(MediaItemError::NotFound(String::from("id = abc"))))
+        (status = 404, description = "MediaItem not found", body = MediaItemError, example = json!(MediaItemError::NotFound(String::from("id = abc"))))
     ),
     params(
         ("id" = string, Path, description = "Media Item ID", example = "abc")
@@ -254,15 +283,15 @@ async fn get_related_media(
     Path(id): Path<String>,
     State(store): State<Arc<Store>>,
 ) -> impl IntoResponse {
-    let tasks = store.lock().await;
+    let library = store.lock().await;
 
     // Find MediaItem by id
-    let result = tasks.0.iter().find(|&task| task.id() == &id);
+    let result = library.0.iter().find(|&media| media.id() == &id);
 
     // Return related media if found
     // TODO: Implement. Currently just returns everything
     match result {
-        Some(_task) => (StatusCode::OK, Json(tasks.clone())).into_response(),
+        Some(_media) => (StatusCode::OK, Json(library.clone())).into_response(),
         None => (
             StatusCode::NOT_FOUND,
             Json(MediaItemError::NotFound(format!("id = {id}"))),
@@ -277,7 +306,7 @@ async fn get_related_media(
     path = "/media/{id}/history",
     responses(
         (status = 200, description = "MediaItem found", body = WatchHistory),
-        (status = 404, description = "MediaItem not found", body = TaskError, example = json!(MediaItemError::NotFound(String::from("id = abc"))))
+        (status = 404, description = "MediaItem not found", body = MediaItemError, example = json!(MediaItemError::NotFound(String::from("id = abc"))))
     ),
     params(
         ("id" = string, Path, description = "Media Item ID", example = "abc")
@@ -298,7 +327,7 @@ async fn get_media_history(
                         episode_number: 1,
                         season_number: 1,
                     },
-                    VideoProgress {
+                    WatchProgress::Partial {
                         progress: 50,
                         last_watched: Utc::now(),
                     },
@@ -311,22 +340,6 @@ async fn get_media_history(
         }),
     )
         .into_response()
-
-    // let tasks = store.lock().await;
-
-    // // Find MediaItem by id
-    // let result = tasks.0.iter().find(|&task| task.id() == &id);
-
-    // // Return related media if found
-    // // TODO: Implement. Currently just returns everything
-    // match result {
-    //     Some(_task) => (StatusCode::OK, Json(tasks.clone())).into_response(),
-    //     None => (
-    //         StatusCode::NOT_FOUND,
-    //         Json(MediaItemError::NotFound(format!("id = {id}"))),
-    //     )
-    //         .into_response(),
-    // }
 }
 
 /// MediaItem operation errors

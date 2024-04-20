@@ -1,10 +1,14 @@
+//! /task API
+
+pub mod schedule;
+
 use std::{cmp::Ordering, sync::Arc};
 
 use axum::{
     extract::{Path, State},
     response::IntoResponse,
-    routing::{get, post,},
-    Json,
+    routing::{get, post},
+    Json, Router,
 };
 use chrono::{DateTime, Utc};
 use hyper::StatusCode;
@@ -72,14 +76,18 @@ impl GenericTask for CollectionScanTask {
     }
 }
 
-pub fn task_router() -> axum::Router {
+pub fn task_router() -> Router {
     let store = Arc::new(Store::default());
 
-    axum::Router::new()
-        .route("/task", get(list_tasks).post(create_task))
-        .route("/task/search", post(search_tasks))
-        .route("/task/:id", get(get_task).delete(delete_task))
-        .with_state(store)
+    Router::new()
+        .merge(
+            Router::new()
+                .route("/", get(list_tasks).post(create_task))
+                .route("/search", post(search_tasks))
+                .route("/:id", get(get_task).delete(delete_task))
+                .with_state(store),
+        )
+        .nest("/schedule", schedule::task_schedule_router())
 }
 
 #[derive(Serialize, Deserialize, ToSchema, PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]

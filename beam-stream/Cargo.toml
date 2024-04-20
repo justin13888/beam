@@ -9,6 +9,7 @@ repository = "https://github.com/justin13888/beam/tree/master/beam-stream"
 
 [dependencies]
 axum = "0.7.5"
+chrono = { version = "0.4.38", features = ["serde"] }
 color-eyre = "0.6.3"
 dotenvy = "0.15.7"
 envy = "0.4.2"
@@ -26,7 +27,9 @@ tower = "0.4.13"
 tower-http = { version = "0.5.2", features = ["cors", "metrics", "trace"] }
 tracing = { version = "0.1.40", features = ["async-await"] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt", "json", "local-time"] }
-utoipa = { version = "4.2.0", features = ["axum_extras"] }
+url = { version = "2.5.0", features = ["serde"] }
+utoipa = { version = "4.2.0", features = ["axum_extras", "debug", "chrono", "time", "uuid", "url"] }
 utoipa-rapidoc = { version = "3.0.0", features = ["axum"] }
 utoipa-redoc = { version = "3.0.0", features = ["axum"] }
 utoipa-swagger-ui = { version = "6.0.0", features = ["axum"] }
+uuid = { version = "1.8.0", features = ["serde", "v4", "fast-rng", "macro-diagnostics"] }

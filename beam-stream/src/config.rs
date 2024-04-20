@@ -48,6 +48,7 @@ pub struct Config {
     pub log_level: LogLevel,
     pub binding_address: SocketAddr,
     pub metrics_binding_address: SocketAddr,
+    pub enable_metrics: bool,
 }
 
 impl Default for Config {
@@ -58,6 +59,7 @@ impl Default for Config {
                 log_level: LogLevel::Debug,
                 binding_address: SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8080)),
                 metrics_binding_address: SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8081)),
+                enable_metrics: true,
             }
         } else {
             Self {
@@ -65,6 +67,7 @@ impl Default for Config {
                 log_level: LogLevel::Warn,
                 binding_address: SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8080)),
                 metrics_binding_address: SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8081)),
+                enable_metrics: true,
             }
         }
     }
@@ -87,6 +90,9 @@ impl Config {
         if let Some(metrics_binding_address) = env.metrics_binding_address {
             s.metrics_binding_address = metrics_binding_address;
         }
+        if let Some(enable_metrics) = env.enable_metrics {
+            s.enable_metrics = enable_metrics;
+        }
 
         Ok(s)
     }
@@ -99,6 +105,7 @@ pub struct Environment {
     pub log_level: Option<LogLevel>,
     pub binding_address: Option<SocketAddr>,
     pub metrics_binding_address: Option<SocketAddr>,
+    pub enable_metrics: Option<bool>,
 }
 
 impl Environment {

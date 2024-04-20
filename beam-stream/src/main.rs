@@ -20,12 +20,12 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::{
     config::{Config, Environment},
     metrics::track_metrics,
-    todo::todo_router,
+    task::task_router,
 };
 
 mod config;
 mod metrics;
-mod todo;
+mod task;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -38,6 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load config
     let env = Environment::from_env()?;
     let config = Config::with_env(env.clone())?;
+    // TODO: Read config.production_mode, log_level
 
     // Initialize tracing subscriber
     let subscriber = tracing_subscriber::registry().with(
@@ -56,10 +57,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Environment: {:?}", &env);
     info!("Config: {:?}", &config);
 
-    let (_main_server, _metrics_server) = tokio::join!(
-        start_main_server(&config.binding_address),
-        start_metrics_server(&config.metrics_binding_address)
-    );
+    if config.enable_metrics {
+        let (_main_server, _metrics_server) = tokio::join!(
+            start_main_server(&config.binding_address),
+            start_metrics_server(&config.metrics_binding_address)
+        );
+    } else {
+        start_main_server(&config.binding_address).await;
+    }
 
     Ok(())
 }
@@ -69,23 +74,35 @@ async fn start_main_server(address: &SocketAddr) {
     #[derive(OpenApi)]
     #[openapi(
         paths(
-            todo::list_todos,
-            todo::search_todos,
-            todo::create_todo,
-            todo::mark_done,
-            todo::delete_todo,
+            task::list_tasks,
+            task::get_task,
+            task::search_tasks,
+            task::create_task,
+            task::delete_task,
         ),
         components(
-            schemas(todo::Todo, todo::TodoError)
+            schemas(
+                task::Task,
+                task::TaskType,
+                task::TaskTrigger,
+                task::TaskStatus,
+                task::ScanType,
+                task::CollectionScanTask,
+                task::TaskError,
+                task::TaskSearchQuery,
+                task::CreateTask,
+                task::CreateCollectionScanTask,
+            )
         ),
         modifiers(&SecurityAddon),
         tags(
-            (name = "todo", description = "Todo items management API")
+            (name = "task", description = "Task management API")
         )
     )]
     struct ApiDoc;
 
     // Define a security addon to add API key security scheme
+    // TODO: Modify for JWT
     struct SecurityAddon;
 
     impl Modify for SecurityAddon {
@@ -93,11 +110,12 @@ async fn start_main_server(address: &SocketAddr) {
             if let Some(components) = openapi.components.as_mut() {
                 components.add_security_scheme(
                     "api_key",
-                    SecurityScheme::ApiKey(ApiKey::Header(ApiKeyValue::new("todo_apikey"))),
+                    SecurityScheme::ApiKey(ApiKey::Header(ApiKeyValue::new("task_apikey"))),
                 )
             }
         }
     }
+    // TODO: implement JWT on all routes
 
     let cors = CorsLayer::new()
         // allow `GET` and `POST` when accessing the resource
@@ -114,7 +132,7 @@ async fn start_main_server(address: &SocketAddr) {
         .merge(RapiDoc::new("/api-docs/openapi.json").path("/rapidoc"))
         // Alternative to above
         // .merge(RapiDoc::with_openapi("/api-docs/openapi2.json", ApiDoc::openapi()).path("/rapidoc"))
-        .merge(todo_router())
+        .merge(task_router())
         .layer(cors)
         .route_layer(middleware::from_fn(track_metrics));
 

@@ -136,17 +136,15 @@ type Store = Mutex<Vec<Task>>;
 /// Task operation errors
 #[derive(Serialize, Deserialize, ToSchema)]
 pub enum TaskError {
-    /// Task already exists conflict.
+    /// Task already exists conflict
     #[schema(example = "Task already exists")]
     Conflict(String),
-    /// Task not found by id.
+    /// Task not found by id
     #[schema(example = "id = 1")]
     NotFound(String),
 }
 
 /// List all Task items
-///
-/// List all Task items from in-memory storage.
 #[utoipa::path(
     get,
     path = "/task",

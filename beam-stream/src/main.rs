@@ -1,9 +1,11 @@
 pub mod config;
 pub mod docs;
+pub mod media;
 pub mod metrics;
 pub mod task;
+pub mod utils;
 
-use std::net::{SocketAddr};
+use std::net::SocketAddr;
 
 use axum::{middleware, Router};
 use dotenvy::dotenv;
@@ -16,7 +18,11 @@ use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::{
-    config::{Config, Environment}, docs::openapi_router, metrics::track_metrics, task::task_router
+    config::{Config, Environment},
+    docs::openapi_router,
+    media::media_router,
+    metrics::track_metrics,
+    task::task_router,
 };
 
 #[tokio::main]
@@ -59,6 +65,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         start_main_server(&config.binding_address).await;
     }
 
+    info!("Shutting down");
+
     Ok(())
 }
 
@@ -74,6 +82,7 @@ async fn start_main_server(address: &SocketAddr) {
     let app = Router::new()
         .merge(openapi_router())
         .nest("/task", task_router())
+        .nest("/media", media_router())
         .layer(cors)
         .route_layer(middleware::from_fn(track_metrics));
 

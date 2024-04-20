@@ -1,6 +1,6 @@
 use axum::Router;
 
-use crate::task;
+use crate::{media, task, utils};
 
 use utoipa::{
     openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
@@ -19,8 +19,14 @@ use utoipa_swagger_ui::SwaggerUi;
         task::search_tasks,
         task::create_task,
         task::delete_task,
+
         task::schedule::get_schedule,
         task::schedule::patch_schedule,
+
+        media::get_media,
+        media::get_related_media,
+        media::get_media_history,
+        // TODO: Add endpoints for /media/*
     ),
     components(
         schemas(
@@ -32,20 +38,42 @@ use utoipa_swagger_ui::SwaggerUi;
             task::CollectionScanTask,
             task::TaskError,
             task::TaskSearchQuery,
+            task::TaskSearchQuerySort,
             task::CreateTask,
             task::CreateCollectionScanTask,
+
             task::schedule::TaskSchedule,
             task::schedule::TaskScheduleFrequency,
             task::schedule::TaskScheduleFrequencyUnit,
             task::schedule::CollectionScanTaskSchedule,
             task::schedule::UpdateTaskSchedule,
             task::schedule::UpdateCollectionScanTaskSchedule,
+
+            media::MediaLibrary,
+            media::MediaItem,
+            media::MovieItem,
+            media::MovieMetadata,
+            media::SeriesItem,
+            media::SeriesMetadata,
+            media::MediaItemFilter,
+            media::MediaItemSort,
+            media::WatchHistory,
+            media::Episode,
+            media::WatchProgress,
+
+            media::collection::MediaCollection,
+
+            utils::SortDirection,
+            utils::DateFilter,
         )
     ),
     modifiers(&SecurityAddon),
     tags(
         (name = "task", description = "Task Management API"),
         (name = "task::schedule", description = "Task Schedule API"),
+        (name = "media", description = "Media Query API"),
+        (name = "media::collection", description = "Media Collection API"),
+        (name = "media::search", description = "Media Search API"),
     )
 )]
 struct ApiDoc;

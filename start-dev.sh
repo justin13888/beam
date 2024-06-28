@@ -25,10 +25,10 @@ tmux send-keys -t beamsession 'cd '"$SCRIPT_DIR/beam-web" C-m
 tmux send-keys -t beamsession 'pnpm dev' C-m
 
 # Create new tmux tab
-tmux new-window -t beamsession:1 -n 'beam-api'
+tmux new-window -t beamsession:1 -n 'beam-auth'
 
-# Start beam-api
-tmux send-keys -t beamsession 'cd '"$SCRIPT_DIR/beam-api" C-m
+# Start beam-auth
+tmux send-keys -t beamsession 'cd '"$SCRIPT_DIR/beam-auth" C-m
 tmux send-keys -t beamsession 'bun dev' C-m
 
 # Attach to tmux session

@@ -1,8 +1,12 @@
 # Beam Web
-
+<!-- TODO: Redo this with Vite. Don't delete existing components -->
 Web interface for Beam. Built with Astro and React.
 
-<!-- TODO: Getting started/Installation -->
+## Features
+
+WIP
+
+<!-- TODO -->
 
 ## Development
 

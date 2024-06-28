@@ -14,4 +14,4 @@ USER beam
 ENV MEDIA_PATH=/media
 EXPOSE 8080/tcp
 EXPOSE 8081/tcp
-CMD ["beam-index"]
+CMD ["beam-stream"]

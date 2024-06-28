@@ -44,6 +44,7 @@ impl From<LogLevel> for LevelFilter {
 // Configuration
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
+    pub identifier: String,
     pub production_mode: bool,
     pub log_level: LogLevel,
     pub binding_address: SocketAddr,
@@ -53,22 +54,15 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        if cfg!(debug_assertions) {
-            Self {
-                production_mode: false,
-                log_level: LogLevel::Debug,
-                binding_address: SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8080)),
-                metrics_binding_address: SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8081)),
-                enable_metrics: true,
-            }
-        } else {
-            Self {
-                production_mode: true,
-                log_level: LogLevel::Warn,
-                binding_address: SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8080)),
-                metrics_binding_address: SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8081)),
-                enable_metrics: true,
-            }
+        let is_debug = cfg!(debug_assertions);
+        
+        Self {
+            identifier: uuid::Uuid::new_v4().to_string(),
+            production_mode: !is_debug,
+            log_level: if is_debug { LogLevel::Debug } else { LogLevel::Warn },
+            binding_address: SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8080)),
+            metrics_binding_address: SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8081)),
+            enable_metrics: true,
         }
     }
 }

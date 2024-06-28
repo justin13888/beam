@@ -1,5 +1,7 @@
+use blake3::Hash;
 use futures::stream::{FuturesUnordered, StreamExt};
 use memmap2::MmapOptions;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 use std::{
@@ -20,10 +22,9 @@ const MIN_MULTITHREADED_HASHING_SIZE: u64 = 128 * 1024; // 128 KiB
 pub struct FileMetadata {
     pub path: PathBuf,
     pub size: u64,
-    pub last_modified: u64,
-    pub created: u64,
+    // pub last_modified: u64,
+    // pub created: u64,
     pub hash: Vec<u8>,
-    // TODO: Add more metadata
 }
 
 // #[derive(Debug, Clone)]
@@ -64,7 +65,11 @@ pub type ScanResult = Vec<Result<FileMetadata, ScanError>>;
 
 /// Scans a directory for media files
 /// Returns a list of metadata for every file
-pub async fn scan_media(media_path: &Path, max_simulataneous_scan: usize, max_partial_hash: usize) -> ScanResult {
+pub async fn scan_media(
+    media_path: &Path,
+    max_simulataneous_scan: usize,
+    max_partial_hash: usize,
+) -> ScanResult {
     // Detect for file changes by name and hash
     // TODO: Compare difference and associate with
 
@@ -99,13 +104,14 @@ async fn scan_file(file_path: PathBuf, max_partial_hash: usize) -> Result<FileMe
     let metadata = file.metadata()?;
     let size = metadata.len();
 
-    // TODO: These two lines below look wrong
-    let last_modified = metadata.modified().unwrap().duration_since(UNIX_EPOCH)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
-        .as_secs();
-    let created = metadata.created().unwrap().duration_since(UNIX_EPOCH)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
-        .as_secs();
+    // Note: No longer needed
+    // // These two lines below look wrong
+    // let last_modified = metadata.modified().unwrap().duration_since(UNIX_EPOCH)
+    //     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
+    //     .as_secs();
+    // let created = metadata.created().unwrap().duration_since(UNIX_EPOCH)
+    //     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
+    //     .as_secs();
 
     // Hash the file
     // let partial_mmap = unsafe { MmapOptions::new().len(max_partial_hash).map(&file)? };
@@ -126,8 +132,60 @@ async fn scan_file(file_path: PathBuf, max_partial_hash: usize) -> Result<FileMe
     Ok(FileMetadata {
         path: file_path,
         size,
-        last_modified,
-        created,
+        // last_modified,
+        // created,
         hash: hash.as_bytes().to_vec(),
     })
+}
+
+pub struct CompareResult {
+    pub created: Vec<PathBuf>,
+    pub modified: Vec<PathBuf>,
+    pub deleted: Vec<PathBuf>,
+    pub unchanged: Vec<PathBuf>,
+}
+
+// TODO: Test and use this function
+/// Compares two lists of file metadata and returns the difference
+pub fn get_changes(old: Vec<FileMetadata>, new: Vec<FileMetadata>) -> CompareResult {
+    let mut created = vec![];
+    let mut modified = vec![];
+    let mut deleted = vec![];
+    let mut unchanged = vec![];
+
+    // Create hashmap with path as key and metadata as value
+    let old_path_map: HashMap<PathBuf, FileMetadata> = old
+        .into_iter()
+        .map(|metadata| (metadata.path.clone(), metadata))
+        .collect();
+    let new_path_map: HashMap<PathBuf, FileMetadata> = new
+        .into_iter()
+        .map(|metadata| (metadata.path.clone(), metadata))
+        .collect();
+
+    // Compare old and new metadata
+    old_path_map.iter().for_each(|(path, old_metadata)| {
+        if let Some(new_metadata) = new_path_map.get(path) {
+            if old_metadata.hash != new_metadata.hash {
+                modified.push(path.clone());
+            } else {
+                unchanged.push(path.clone());
+            }
+        } else {
+            deleted.push(path.clone());
+        }
+    });
+
+    new_path_map.iter().for_each(|(path, _new_metadata)| {
+        if !old_path_map.contains_key(path) {
+            created.push(path.clone());
+        }
+    });
+
+    CompareResult {
+        created,
+        modified,
+        deleted,
+        unchanged,
+    }
 }

@@ -8,10 +8,10 @@ RUN cargo build --release
 # Copy binary to a new image
 FROM alpine
 RUN adduser -D beam
-COPY --from=builder --chown=beam:beam --chmod=755 /app/target/release/beam-stream /usr/local/bin/beam-stream
+COPY --from=builder --chown=beam:beam --chmod=755 /app/target/release/beam-tasks /usr/local/bin/beam-tasks
 USER beam
 
 ENV MEDIA_PATH=/media
 EXPOSE 8080/tcp
 EXPOSE 8081/tcp
-CMD ["beam-stream"]
+CMD ["beam-tasks"]

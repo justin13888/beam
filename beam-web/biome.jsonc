@@ -49,6 +49,9 @@
             "noExplicitAny": "off"
           }
         }
+      },
+      "formatter": {
+        "enabled": false
       }
     }
   ]

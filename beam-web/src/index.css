@@ -1,4 +1,4 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-/* TODO: Upgrade to Tailwind v4 when stable (July 2024) */
+/* TODO: Upgrade to Tailwind v4 when stable (July 2024) and migrate PostCSS to LightningCSS*/

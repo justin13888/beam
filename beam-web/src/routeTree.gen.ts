@@ -13,23 +13,67 @@ import { createFileRoute } from '@tanstack/react-router'
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
+import { Route as SettingsImport } from './routes/settings'
 
 // Create Virtual Routes
 
+const WatchLazyImport = createFileRoute('/watch')()
+const SignupLazyImport = createFileRoute('/signup')()
+const ProfileLazyImport = createFileRoute('/profile')()
+const LoginLazyImport = createFileRoute('/login')()
+const BrowseLazyImport = createFileRoute('/browse')()
 const AboutLazyImport = createFileRoute('/about')()
 const IndexLazyImport = createFileRoute('/')()
+const AdminDashboardLazyImport = createFileRoute('/admin/dashboard')()
 
 // Create/Update Routes
+
+const WatchLazyRoute = WatchLazyImport.update({
+  path: '/watch',
+  getParentRoute: () => rootRoute,
+} as any).lazy(() => import('./routes/watch.lazy').then((d) => d.Route))
+
+const SignupLazyRoute = SignupLazyImport.update({
+  path: '/signup',
+  getParentRoute: () => rootRoute,
+} as any).lazy(() => import('./routes/signup.lazy').then((d) => d.Route))
+
+const ProfileLazyRoute = ProfileLazyImport.update({
+  path: '/profile',
+  getParentRoute: () => rootRoute,
+} as any).lazy(() => import('./routes/profile.lazy').then((d) => d.Route))
+
+const LoginLazyRoute = LoginLazyImport.update({
+  path: '/login',
+  getParentRoute: () => rootRoute,
+} as any).lazy(() => import('./routes/login.lazy').then((d) => d.Route))
+
+const BrowseLazyRoute = BrowseLazyImport.update({
+  path: '/browse',
+  getParentRoute: () => rootRoute,
+} as any).lazy(() => import('./routes/browse.lazy').then((d) => d.Route))
 
 const AboutLazyRoute = AboutLazyImport.update({
   path: '/about',
   getParentRoute: () => rootRoute,
 } as any).lazy(() => import('./routes/about.lazy').then((d) => d.Route))
 
+const SettingsRoute = SettingsImport.update({
+  path: '/settings',
+  getParentRoute: () => rootRoute,
+} as any)
+
 const IndexLazyRoute = IndexLazyImport.update({
   path: '/',
   getParentRoute: () => rootRoute,
 } as any).lazy(() => import('./routes/index.lazy').then((d) => d.Route))
+
+const AdminDashboardLazyRoute = AdminDashboardLazyImport.update({
+  path: '/admin/dashboard',
+  getParentRoute: () => rootRoute,
+} as any).lazy(() =>
+  import('./routes/admin/dashboard.lazy').then((d) => d.Route),
+)
 
 // Populate the FileRoutesByPath interface
 
@@ -42,11 +86,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexLazyImport
       parentRoute: typeof rootRoute
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsImport
+      parentRoute: typeof rootRoute
+    }
     '/about': {
       id: '/about'
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AboutLazyImport
+      parentRoute: typeof rootRoute
+    }
+    '/browse': {
+      id: '/browse'
+      path: '/browse'
+      fullPath: '/browse'
+      preLoaderRoute: typeof BrowseLazyImport
+      parentRoute: typeof rootRoute
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginLazyImport
+      parentRoute: typeof rootRoute
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileLazyImport
+      parentRoute: typeof rootRoute
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupLazyImport
+      parentRoute: typeof rootRoute
+    }
+    '/watch': {
+      id: '/watch'
+      path: '/watch'
+      fullPath: '/watch'
+      preLoaderRoute: typeof WatchLazyImport
+      parentRoute: typeof rootRoute
+    }
+    '/admin/dashboard': {
+      id: '/admin/dashboard'
+      path: '/admin/dashboard'
+      fullPath: '/admin/dashboard'
+      preLoaderRoute: typeof AdminDashboardLazyImport
       parentRoute: typeof rootRoute
     }
   }
@@ -56,7 +149,14 @@ declare module '@tanstack/react-router' {
 
 export const routeTree = rootRoute.addChildren({
   IndexLazyRoute,
+  SettingsRoute,
   AboutLazyRoute,
+  BrowseLazyRoute,
+  LoginLazyRoute,
+  ProfileLazyRoute,
+  SignupLazyRoute,
+  WatchLazyRoute,
+  AdminDashboardLazyRoute,
 })
 
 /* prettier-ignore-end */
@@ -68,14 +168,42 @@ export const routeTree = rootRoute.addChildren({
       "filePath": "__root.tsx",
       "children": [
         "/",
-        "/about"
+        "/settings",
+        "/about",
+        "/browse",
+        "/login",
+        "/profile",
+        "/signup",
+        "/watch",
+        "/admin/dashboard"
       ]
     },
     "/": {
       "filePath": "index.lazy.tsx"
     },
+    "/settings": {
+      "filePath": "settings.tsx"
+    },
     "/about": {
       "filePath": "about.lazy.tsx"
+    },
+    "/browse": {
+      "filePath": "browse.lazy.tsx"
+    },
+    "/login": {
+      "filePath": "login.lazy.tsx"
+    },
+    "/profile": {
+      "filePath": "profile.lazy.tsx"
+    },
+    "/signup": {
+      "filePath": "signup.lazy.tsx"
+    },
+    "/watch": {
+      "filePath": "watch.lazy.tsx"
+    },
+    "/admin/dashboard": {
+      "filePath": "admin/dashboard.lazy.tsx"
     }
   }
 }

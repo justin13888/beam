@@ -1,7 +1,8 @@
+import { ThemeProvider } from "@/components/theme-provider";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
-import { ThemeProvider } from "@/components/theme-provider"
+import "./index.css";
 
 import { NotFound } from "./components/404";
 // Import the generated route tree
@@ -28,7 +29,7 @@ if (!rootElement.innerHTML) {
   root.render(
     <StrictMode>
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-      <RouterProvider router={router} />
+        <RouterProvider router={router} />
       </ThemeProvider>
     </StrictMode>,
   );

@@ -1,7 +1,9 @@
 import { Link } from "@tanstack/react-router";
+import { ModeToggle } from "./mode-toggle";
 
 export const Header = () => {
   return (
+    <>
     <div className="p-2 flex gap-2">
       <Link to="/" className="[&.active]:font-bold">
         Home
@@ -10,6 +12,9 @@ export const Header = () => {
         About
       </Link>
     </div>
+
+    <ModeToggle />
+    </>
   );
 };
 

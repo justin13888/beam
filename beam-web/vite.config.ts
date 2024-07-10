@@ -14,5 +14,10 @@ export default defineConfig({
     },
   },
   plugins: [ViteMinifyPlugin({}), TanStackRouterVite(), react()],
+  resolve: {
+    alias: {
+      "@": resolve(__dirname, "./src"),
+    }
+  }
 });
 // TODO: Configure PWA

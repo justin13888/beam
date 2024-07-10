@@ -1,44 +1,28 @@
 {
   "name": "beam-web",
+  "private": true,
+  "version": "0.0.0",
   "type": "module",
-  "version": "0.0.1",
   "scripts": {
-    "dev": "astro dev",
-    "start": "astro dev",
-    "build": "astro check && astro build",
-    "preview": "astro preview",
-    "astro": "astro",
-    "lint": "eslint --ext .js,.astro src",
-    "lint:styles": "stylelint src/**/*.css",
-    "format": "prettier --write . --plugin=prettier-plugin-astro"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@astrojs/check": "^0.5.9",
-    "@astrojs/react": "^3.1.0",
-    "@astrojs/tailwind": "^5.1.0",
-    "@radix-ui/react-dropdown-menu": "^2.0.6",
-    "@radix-ui/react-slider": "^1.1.2",
-    "@radix-ui/react-tooltip": "^1.0.7",
-    "@types/react": "^18.2.67",
-    "@types/react-dom": "^18.2.22",
-    "@vidstack/react": "^1.10.9",
-    "astro": "^4.5.6",
-    "lucide-react": "^0.359.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "tailwindcss": "^3.4.1",
-    "tailwindcss-animate": "^1.0.7",
-    "typescript": "^5.4.2"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@typescript-eslint/parser": "^7.3.1",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.13.1",
+    "@typescript-eslint/parser": "^7.13.1",
+    "@vitejs/plugin-react-swc": "^3.5.0",
     "eslint": "^8.57.0",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-astro": "^0.31.4",
-    "eslint-plugin-jsx-a11y": "^6.8.0",
-    "prettier": "3.2.5",
-    "stylelint": "^16.2.1",
-    "stylelint-config-standard": "^36.0.0",
-    "stylelint-config-standard-scss": "^13.0.0"
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "eslint-plugin-react-refresh": "^0.4.7",
+    "typescript": "^5.2.2",
+    "vite": "^5.3.1"
   }
 }

@@ -4,6 +4,10 @@ Web interface/PWA for Beam. Built with React.
 
 ## Features
 
+- First-class support for Beam server features
+- Built with fast, modern web technologies
+- PWA support
+
 WIP
 
 <!-- TODO -->

@@ -1,5 +1,7 @@
 # beam
 
+> NOTE: Project is currently dormant. Major refactoring is to be expected next year.
+
 Beam is a high-performance, scalable media server to stream video, audio, and other content with real-time transcoding capabilities. It is ideal for home labs, small business that need to stream content on a variety of devices.
 
 ## Features

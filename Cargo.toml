@@ -1,0 +1,11 @@
+[workspace]
+members = ["beam-stream"]
+resolver = "3"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+
+[profile.release-with-debug]
+inherits = "release"
+debug = true

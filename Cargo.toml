@@ -12,6 +12,8 @@ tracing-subscriber = "0.3.20"
 [profile.release]
 codegen-units = 1
 lto = "thin"
+# panic = "abort"
+# strip = true
 
 [profile.release-with-debug]
 inherits = "release"

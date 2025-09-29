@@ -2,10 +2,14 @@ use axum::extract::{Path, Query};
 use axum::response::Response;
 use axum::{Json, http::StatusCode};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 use tracing::info;
 use utoipa::{IntoParams, ToSchema};
 
+use beam_stream::utils::metadata::extract_metadata;
+
+// TODO: Expand this to all the metadata actually needed by the server
 #[derive(Serialize, ToSchema)]
 pub struct MediaInfo {
     pub file_name: String,
@@ -42,21 +46,48 @@ pub struct StreamParams {
 pub async fn get_media_metadata(Path(id): Path<String>) -> Result<Json<MediaInfo>, StatusCode> {
     info!("Getting media metadata for ID: {}", id);
 
-    // TODO: Implement actual media info extraction using FFmpeg
-    // This is where you'd use your existing metadata extraction code
+    // Construct the file path - in a real implementation, you'd map IDs to actual file paths
+    let file_path = PathBuf::from("videos").join(&id);
 
-    // Mock response for now
-    let media_metadata = MediaInfo {
-        file_name: id,
-        duration: Some(3600.0), // 1 hour
-        width: Some(1920),
-        height: Some(1080),
-        bitrate: Some(5000),
-        format: Some("h264".to_string()),
-        size: 1024 * 1024 * 500, // 500MB
-    };
+    if !file_path.exists() {
+        return Err(StatusCode::NOT_FOUND);
+    }
 
-    Ok(Json(media_metadata))
+    match extract_metadata(&file_path) {
+        Ok(metadata) => {
+            let mut width = None;
+            let mut height = None;
+            let mut bitrate = None;
+            let mut format = None;
+
+            // Get video information from the best video stream
+            if let Some(video_stream_idx) = metadata.best_video_stream
+                && let Some(stream) = metadata.streams.get(video_stream_idx)
+                && let Some(video) = &stream.video
+            {
+                width = Some(video.width);
+                height = Some(video.height);
+                bitrate = Some(video.bit_rate as u32);
+                format = Some(video.codec_name.clone());
+            }
+
+            let media_metadata = MediaInfo {
+                file_name: id,
+                duration: Some(metadata.duration_seconds()),
+                width,
+                height,
+                bitrate,
+                format,
+                size: metadata.file_size,
+            };
+
+            Ok(Json(media_metadata))
+        }
+        Err(err) => {
+            tracing::error!("Failed to extract metadata: {:?}", err);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 /// Stream media file

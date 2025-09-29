@@ -1,7 +1,15 @@
 use ffmpeg_next as ffmpeg;
 use std::{collections::HashMap, path::Path};
 
-// TODO: Abstract away the ffmpeg types and methods
+use crate::utils::{
+    color::{
+        ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransferCharacteristic,
+        PixelFormat,
+    },
+    format::{ChannelLayout, Disposition, SampleFormat},
+    math::Rational,
+    media::{CodecId, Discard, MediaType},
+};
 
 fn parse_duration_string(duration_str: &str) -> Option<f64> {
     // Parse duration strings like "00:45:23.000000000"
@@ -18,21 +26,21 @@ fn parse_duration_string(duration_str: &str) -> Option<f64> {
     None
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct VideoMetadata {
     pub bit_rate: usize,
     pub max_rate: usize,
     pub delay: usize,
     pub width: u32,
     pub height: u32,
-    pub format: ffmpeg::format::Pixel,
+    pub format: PixelFormat,
     pub has_b_frames: bool,
-    pub aspect_ratio: ffmpeg::Rational,
-    pub color_space: ffmpeg::color::Space,
-    pub color_range: ffmpeg::color::Range,
-    pub color_primaries: ffmpeg::color::Primaries,
-    pub color_transfer_characteristic: ffmpeg::color::TransferCharacteristic,
-    pub chroma_location: ffmpeg::chroma::Location,
+    pub aspect_ratio: Rational,
+    pub color_space: ColorSpace,
+    pub color_range: ColorRange,
+    pub color_primaries: ColorPrimaries,
+    pub color_transfer_characteristic: ColorTransferCharacteristic,
+    pub chroma_location: ChromaLocation,
     pub references: usize,
     pub intra_dc_precision: u8,
     pub profile: String,
@@ -55,26 +63,21 @@ impl VideoMetadata {
     /// Get bit depth from pixel format
     /// Returns None if unknown.
     pub fn bit_depth(&self) -> Option<u8> {
-        match self.format {
-            ffmpeg::format::Pixel::YUV420P10LE | ffmpeg::format::Pixel::YUV420P10BE => Some(10),
-            ffmpeg::format::Pixel::YUV420P12LE | ffmpeg::format::Pixel::YUV420P12BE => Some(12),
-            ffmpeg::format::Pixel::YUV420P16LE | ffmpeg::format::Pixel::YUV420P16BE => Some(16),
-            _ => None,
-        }
+        self.format.bit_depth()
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct AudioMetadata {
     pub bit_rate: usize,
     pub max_rate: usize,
     pub delay: usize,
     pub rate: u32,
     pub channels: u16,
-    pub format: ffmpeg::format::Sample,
+    pub format: SampleFormat,
     pub frames: usize,
     pub align: usize,
-    pub channel_layout: ffmpeg::channel_layout::ChannelLayout,
+    pub channel_layout: ChannelLayout,
     pub codec_name: String,
     pub profile: String,
     pub title: String,
@@ -116,18 +119,18 @@ impl AudioMetadata {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct StreamMetadata {
     pub index: usize,
-    pub time_base: ffmpeg::Rational,
+    pub time_base: Rational,
     pub start_time: i64,
     pub duration: i64,
     pub frames: i64,
-    pub disposition: ffmpeg::format::stream::Disposition,
-    pub discard: ffmpeg::Discard,
-    pub rate: ffmpeg::Rational,
-    pub medium: ffmpeg::media::Type,
-    pub codec_id: ffmpeg::codec::Id,
+    pub disposition: Disposition,
+    pub discard: Discard,
+    pub rate: Rational,
+    pub medium: MediaType,
+    pub codec_id: CodecId,
     pub video: Option<VideoMetadata>,
     pub audio: Option<AudioMetadata>,
     pub metadata: HashMap<String, String>,
@@ -136,12 +139,12 @@ pub struct StreamMetadata {
 impl StreamMetadata {
     /// Compute duration in seconds from duration and time_base
     pub fn duration_seconds(&self) -> f64 {
-        self.duration as f64 * f64::from(self.time_base)
+        self.duration as f64 * self.time_base.to_f64()
     }
 
     /// Compute frame rate from the stream rate
     pub fn frame_rate(&self) -> f64 {
-        f64::from(self.rate)
+        self.rate.to_f64()
     }
 
     /// Get the actual duration, using metadata fallback if duration is 0
@@ -173,7 +176,7 @@ impl StreamMetadata {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FileMetadata {
     pub metadata: HashMap<String, String>,
     pub best_video_stream: Option<usize>,
@@ -247,15 +250,16 @@ pub fn extract_metadata(file_path: &Path) -> Result<FileMetadata, ffmpeg::Error>
                             delay: video_decoder.delay(),
                             width: video_decoder.width(),
                             height: video_decoder.height(),
-                            format: video_decoder.format(),
+                            format: video_decoder.format().into(),
                             has_b_frames: video_decoder.has_b_frames(),
-                            aspect_ratio: video_decoder.aspect_ratio(),
-                            color_space: video_decoder.color_space(),
-                            color_range: video_decoder.color_range(),
-                            color_primaries: video_decoder.color_primaries(),
+                            aspect_ratio: video_decoder.aspect_ratio().into(),
+                            color_space: video_decoder.color_space().into(),
+                            color_range: video_decoder.color_range().into(),
+                            color_primaries: video_decoder.color_primaries().into(),
                             color_transfer_characteristic: video_decoder
-                                .color_transfer_characteristic(),
-                            chroma_location: video_decoder.chroma_location(),
+                                .color_transfer_characteristic()
+                                .into(),
+                            chroma_location: video_decoder.chroma_location().into(),
                             references: video_decoder.references(),
                             intra_dc_precision: video_decoder.intra_dc_precision(),
                             profile,
@@ -286,10 +290,10 @@ pub fn extract_metadata(file_path: &Path) -> Result<FileMetadata, ffmpeg::Error>
                             delay: audio_decoder.delay(),
                             rate: audio_decoder.rate(),
                             channels: audio_decoder.channels(),
-                            format: audio_decoder.format(),
+                            format: audio_decoder.format().into(),
                             frames: audio_decoder.frames(),
                             align: audio_decoder.align(),
-                            channel_layout: audio_decoder.channel_layout(),
+                            channel_layout: audio_decoder.channel_layout().into(),
                             codec_name,
                             profile,
                             title,
@@ -314,15 +318,15 @@ pub fn extract_metadata(file_path: &Path) -> Result<FileMetadata, ffmpeg::Error>
 
             StreamMetadata {
                 index: stream.index(),
-                time_base: stream.time_base(),
+                time_base: stream.time_base().into(),
                 start_time: stream.start_time(),
                 duration: stream.duration(),
                 frames: stream.frames(),
-                disposition: stream.disposition(),
-                discard: stream.discard(),
-                rate: stream.rate(),
-                medium,
-                codec_id,
+                disposition: stream.disposition().into(),
+                discard: stream.discard().into(),
+                rate: stream.rate().into(),
+                medium: medium.into(),
+                codec_id: codec_id.into(),
                 video,
                 audio,
                 metadata,

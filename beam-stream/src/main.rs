@@ -1,12 +1,11 @@
-use axum::extract::Multipart;
-use serde::Deserialize;
+mod routes;
+
 use std::env;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
-use utoipa::ToSchema;
-use utoipa_axum::router::OpenApiRouter;
-use utoipa_axum::routes;
 use utoipa_scalar::{Scalar, Servable};
+
+use routes::create_router;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -27,12 +26,9 @@ async fn main() -> std::io::Result<()> {
         )
         .init();
 
-    info!("Starting beam-stream service");
+    info!("Starting beam-stream...");
 
-    let (router, api) = OpenApiRouter::new()
-        .routes(routes!(hello_form))
-        .split_for_parts();
-
+    let (router, api) = create_router().split_for_parts();
     let router = router.merge(Scalar::with_url("/openapi", api));
 
     let app = router.into_make_service();
@@ -51,63 +47,4 @@ async fn main() -> std::io::Result<()> {
     );
 
     axum::serve(listener, app).await
-}
-
-/// Just a schema for axum native multipart
-#[derive(Deserialize, ToSchema)]
-#[allow(unused)]
-struct HelloForm {
-    name: String,
-    #[schema(format = Binary, content_media_type = "application/octet-stream")]
-    file: String,
-}
-
-#[utoipa::path(
-    post,
-    path = "/hello",
-    request_body(content = HelloForm, content_type = "multipart/form-data")
-)]
-#[tracing::instrument]
-async fn hello_form(mut multipart: Multipart) -> String {
-    info!("Processing multipart form request");
-
-    let mut name: Option<String> = None;
-    let mut content_type: Option<String> = None;
-    let mut size: usize = 0;
-    let mut file_name: Option<String> = None;
-
-    while let Some(field) = multipart.next_field().await.unwrap() {
-        let field_name = field.name();
-
-        match &field_name {
-            Some("name") => {
-                name = Some(field.text().await.expect("should be text for name field"));
-            }
-            Some("file") => {
-                file_name = field.file_name().map(ToString::to_string);
-                content_type = field.content_type().map(ToString::to_string);
-                let bytes = field.bytes().await.expect("should be bytes for file field");
-                size = bytes.len();
-            }
-            _ => (),
-        };
-    }
-
-    let response = format!(
-        "name: {}, content_type: {}, size: {}, file_name: {}",
-        name.as_deref().unwrap_or_default(),
-        content_type.as_deref().unwrap_or_default(),
-        size,
-        file_name.as_deref().unwrap_or_default()
-    );
-
-    info!(
-        name = name.as_deref(),
-        content_type = content_type.as_deref(),
-        size = size,
-        file_name = file_name.as_deref(),
-        "Processed multipart form"
-    );
-
-    response
 }

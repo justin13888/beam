@@ -2,9 +2,12 @@
 name = "beam-stream"
 version = "0.1.0"
 edition = "2024"
+license = "AGPL-3.0-only"
+publish = false
 
 [dependencies]
 axum = { workspace = true, features = ["http2", "multipart"] }
+chrono = { version = "0.4", features = ["serde"] }
 dotenvy = "0.15.7"
 ffmpeg-next = { workspace = true }
 serde = { version = "1.0.228", features = ["derive"] }

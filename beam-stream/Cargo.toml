@@ -4,8 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-axum = { workspace = true }
+axum = { workspace = true, features = ["http2", "multipart"] }
 ffmpeg-next = { workspace = true }
+serde = { version = "1.0.228", features = ["derive"] }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+utoipa = { version = "5.4.0", features = ["axum_extras", "chrono", "url", "uuid"] }
+utoipa-axum = "0.2.0"
+utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }

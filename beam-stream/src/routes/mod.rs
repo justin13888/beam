@@ -21,7 +21,7 @@ use media::*;
     paths(
         health_check,
         // upload_file,
-        get_media_info,
+        get_media_metadata,
         stream_media
     ),
     components(schemas(
@@ -43,6 +43,6 @@ pub fn create_router() -> OpenApiRouter {
     OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(health_check))
         // .routes(routes!(upload_file))
-        .routes(routes!(get_media_info))
+        .routes(routes!(get_media_metadata))
         .routes(routes!(stream_media))
 }

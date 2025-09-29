@@ -24,30 +24,30 @@ pub struct StreamParams {
     pub quality: Option<String>,
 }
 
-/// Get media file information
+/// Get media metadata by ID
 #[utoipa::path(
     get,
-    path = "/media/{filename}/info",
+    path = "/media/{id}/metadata",
     params(
-        ("filename" = String, Path, description = "Media file name")
+        ("id" = String, Path, description = "Media ID")
     ),
     responses(
         (status = 200, description = "Media information retrieved", body = MediaInfo),
-        (status = 404, description = "File not found", body = super::ErrorResponse),
+        (status = 404, description = "Media not found", body = super::ErrorResponse),
         (status = 500, description = "Internal server error", body = super::ErrorResponse)
     ),
     tag = "media"
 )]
 #[tracing::instrument]
-pub async fn get_media_info(Path(filename): Path<String>) -> Result<Json<MediaInfo>, StatusCode> {
-    info!("Getting media info for file: {}", filename);
+pub async fn get_media_metadata(Path(id): Path<String>) -> Result<Json<MediaInfo>, StatusCode> {
+    info!("Getting media metadata for ID: {}", id);
 
     // TODO: Implement actual media info extraction using FFmpeg
     // This is where you'd use your existing metadata extraction code
 
     // Mock response for now
-    let media_info = MediaInfo {
-        file_name: filename,
+    let media_metadata = MediaInfo {
+        file_name: id,
         duration: Some(3600.0), // 1 hour
         width: Some(1920),
         height: Some(1080),
@@ -56,15 +56,15 @@ pub async fn get_media_info(Path(filename): Path<String>) -> Result<Json<MediaIn
         size: 1024 * 1024 * 500, // 500MB
     };
 
-    Ok(Json(media_info))
+    Ok(Json(media_metadata))
 }
 
 /// Stream media file
 #[utoipa::path(
     get,
-    path = "/media/{filename}/stream",
+    path = "/media/{id}/stream",
     params(
-        ("filename" = String, Path, description = "Media file name"),
+        ("id" = String, Path, description = "Media ID"),
         StreamParams
     ),
     responses(
@@ -77,12 +77,12 @@ pub async fn get_media_info(Path(filename): Path<String>) -> Result<Json<MediaIn
 )]
 #[tracing::instrument]
 pub async fn stream_media(
-    Path(filename): Path<String>,
+    Path(id): Path<String>,
     Query(params): Query<StreamParams>,
 ) -> Result<Response, StatusCode> {
     info!(
-        "Streaming media file: {}, params: start={:?}, duration={:?}, quality={:?}",
-        filename, params.start, params.duration, params.quality
+        "Streaming media with ID: {}, params: start={:?}, duration={:?}, quality={:?}",
+        id, params.start, params.duration, params.quality
     );
 
     // TODO: Implement actual streaming logic

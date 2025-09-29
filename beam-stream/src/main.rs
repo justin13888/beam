@@ -1,7 +1,7 @@
 mod routes;
 
 use eyre::{Result, eyre};
-use tracing::{debug, info};
+use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 use utoipa_scalar::{Scalar, Servable};
 
@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
     // Load configuration
     let config = Config::from_env().map_err(|e| eyre!(e))?;
 
-    debug!("Configuration loaded: {:?}", config);
+    info!("Configuration loaded: {:?}", config);
 
     // Ensure video and cache directories exist
     tokio::fs::create_dir_all(config.video_dir)

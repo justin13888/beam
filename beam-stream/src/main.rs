@@ -3,7 +3,7 @@ use serde::Deserialize;
 use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
-use utoipa_swagger_ui::SwaggerUi;
+use utoipa_scalar::{Scalar, Servable};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -11,7 +11,7 @@ async fn main() -> std::io::Result<()> {
         .routes(routes!(hello_form))
         .split_for_parts();
 
-    let router = router.merge(SwaggerUi::new("/swagger-ui").url("/api/openapi.json", api));
+    let router = router.merge(Scalar::with_url("/openapi", api));
 
     let app = router.into_make_service();
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();

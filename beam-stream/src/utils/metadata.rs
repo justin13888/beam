@@ -35,7 +35,6 @@ pub struct VideoMetadata {
     pub chroma_location: ffmpeg::chroma::Location,
     pub references: usize,
     pub intra_dc_precision: u8,
-    pub bit_depth: u8,
     pub profile: String,
     pub level: String,
     pub codec_name: String,
@@ -50,6 +49,17 @@ impl VideoMetadata {
             bps_str.parse::<f64>().unwrap_or(0.0)
         } else {
             0.0
+        }
+    }
+
+    /// Get bit depth from pixel format
+    /// Returns None if unknown.
+    pub fn bit_depth(&self) -> Option<u8> {
+        match self.format {
+            ffmpeg::format::Pixel::YUV420P10LE | ffmpeg::format::Pixel::YUV420P10BE => Some(10),
+            ffmpeg::format::Pixel::YUV420P12LE | ffmpeg::format::Pixel::YUV420P12BE => Some(12),
+            ffmpeg::format::Pixel::YUV420P16LE | ffmpeg::format::Pixel::YUV420P16BE => Some(16),
+            _ => None,
         }
     }
 }
@@ -186,59 +196,52 @@ impl FileMetadata {
 }
 
 pub fn extract_metadata(file_path: &Path) -> Result<FileMetadata, ffmpeg::Error> {
-    match ffmpeg::format::input(file_path) {
-        Ok(context) => {
-            // Collect file-level metadata
-            let mut metadata = HashMap::new();
-            for (k, v) in context.metadata().iter() {
-                metadata.insert(k.to_string(), v.to_string());
-            }
+    let context = ffmpeg::format::input(file_path)?;
 
-            // Find best streams
-            let best_video_stream = context
-                .streams()
-                .best(ffmpeg::media::Type::Video)
-                .map(|s| s.index());
-            let best_audio_stream = context
-                .streams()
-                .best(ffmpeg::media::Type::Audio)
-                .map(|s| s.index());
-            let best_subtitle_stream = context
-                .streams()
-                .best(ffmpeg::media::Type::Subtitle)
-                .map(|s| s.index());
+    // Collect file-level metadata
+    let metadata: HashMap<String, String> = context
+        .metadata()
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
 
-            // Get duration in AV_TIME_BASE units
-            let duration = context.duration();
+    // Find best streams
+    let best_video_stream = context
+        .streams()
+        .best(ffmpeg::media::Type::Video)
+        .map(|s| s.index());
+    let best_audio_stream = context
+        .streams()
+        .best(ffmpeg::media::Type::Audio)
+        .map(|s| s.index());
+    let best_subtitle_stream = context
+        .streams()
+        .best(ffmpeg::media::Type::Subtitle)
+        .map(|s| s.index());
 
-            // Process all streams
-            let mut streams = Vec::new();
-            for stream in context.streams() {
-                let codec = ffmpeg::codec::context::Context::from_parameters(stream.parameters())?;
-                let medium = codec.medium();
-                let codec_id = codec.id();
+    // Get duration in AV_TIME_BASE units
+    let duration = context.duration();
 
-                let mut video = None;
-                let mut audio = None;
+    // Process all streams
+    let streams: Vec<StreamMetadata> = context
+        .streams()
+        .map(|stream| {
+            let codec =
+                ffmpeg::codec::context::Context::from_parameters(stream.parameters()).unwrap();
+            let medium = codec.medium();
+            let codec_id = codec.id();
 
-                if medium == ffmpeg::media::Type::Video {
-                    if let Ok(video_decoder) = codec.decoder().video() {
+            let mut video = None;
+            let mut audio = None;
+
+            match medium {
+                ffmpeg::media::Type::Video => {
+                    video = codec.decoder().video().ok().map(|video_decoder| {
                         let codec_name = format!("{:?}", codec_id);
                         let profile = format!("{:?}", video_decoder.profile());
                         let level = "Unknown".to_string(); // Level not directly available in ffmpeg-next
 
-                        // Try to get bit depth from format
-                        let bit_depth = match video_decoder.format() {
-                            ffmpeg::format::Pixel::YUV420P10LE
-                            | ffmpeg::format::Pixel::YUV420P10BE => 10,
-                            ffmpeg::format::Pixel::YUV420P12LE
-                            | ffmpeg::format::Pixel::YUV420P12BE => 12,
-                            ffmpeg::format::Pixel::YUV420P16LE
-                            | ffmpeg::format::Pixel::YUV420P16BE => 16,
-                            _ => 8, // Default to 8-bit
-                        };
-
-                        video = Some(VideoMetadata {
+                        VideoMetadata {
                             bit_rate: video_decoder.bit_rate(),
                             max_rate: video_decoder.max_bit_rate(),
                             delay: video_decoder.delay(),
@@ -255,18 +258,17 @@ pub fn extract_metadata(file_path: &Path) -> Result<FileMetadata, ffmpeg::Error>
                             chroma_location: video_decoder.chroma_location(),
                             references: video_decoder.references(),
                             intra_dc_precision: video_decoder.intra_dc_precision(),
-                            bit_depth,
                             profile,
                             level,
                             codec_name,
-                        });
-                    }
-                } else if medium == ffmpeg::media::Type::Audio {
-                    if let Ok(audio_decoder) = codec.decoder().audio() {
+                        }
+                    });
+                }
+                ffmpeg::media::Type::Audio => {
+                    audio = codec.decoder().audio().ok().map(|audio_decoder| {
                         let codec_name = format!("{:?}", codec_id);
                         let profile = format!("{:?}", audio_decoder.profile());
 
-                        // Get title and language from stream metadata
                         let mut title = String::new();
                         let mut language = String::new();
 
@@ -278,7 +280,7 @@ pub fn extract_metadata(file_path: &Path) -> Result<FileMetadata, ffmpeg::Error>
                             }
                         }
 
-                        audio = Some(AudioMetadata {
+                        AudioMetadata {
                             bit_rate: audio_decoder.bit_rate(),
                             max_rate: audio_decoder.max_bit_rate(),
                             delay: audio_decoder.delay(),
@@ -292,55 +294,60 @@ pub fn extract_metadata(file_path: &Path) -> Result<FileMetadata, ffmpeg::Error>
                             profile,
                             title,
                             language,
-                        });
-                    }
+                        }
+                    });
                 }
-
-                // Collect stream metadata
-                let mut stream_metadata = HashMap::new();
-                for (k, v) in stream.metadata().iter() {
-                    stream_metadata.insert(k.to_string(), v.to_string());
+                ffmpeg::media::Type::Subtitle
+                | ffmpeg::media::Type::Data
+                | ffmpeg::media::Type::Attachment
+                | ffmpeg::media::Type::Unknown => {
+                    // TODO: Handle other streams especially subtitles
+                    // No specific metadata extraction for these types yet
                 }
-
-                streams.push(StreamMetadata {
-                    index: stream.index(),
-                    time_base: stream.time_base(),
-                    start_time: stream.start_time(),
-                    duration: stream.duration(),
-                    frames: stream.frames(),
-                    disposition: stream.disposition(),
-                    discard: stream.discard(),
-                    rate: stream.rate(),
-                    medium,
-                    codec_id,
-                    video,
-                    audio,
-                    metadata: stream_metadata,
-                });
             }
 
-            // Get format information
-            let format_name = context.format().name().to_string();
-            let format_long_name = context.format().description().to_string();
-            let file_size = std::fs::metadata(file_path).map(|m| m.len()).unwrap_or(0);
-            let bit_rate = context.bit_rate();
-            let probe_score = context.probe_score();
+            let metadata = stream
+                .metadata()
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect();
 
-            Ok(FileMetadata {
+            StreamMetadata {
+                index: stream.index(),
+                time_base: stream.time_base(),
+                start_time: stream.start_time(),
+                duration: stream.duration(),
+                frames: stream.frames(),
+                disposition: stream.disposition(),
+                discard: stream.discard(),
+                rate: stream.rate(),
+                medium,
+                codec_id,
+                video,
+                audio,
                 metadata,
-                best_video_stream,
-                best_audio_stream,
-                best_subtitle_stream,
-                duration,
-                streams,
-                format_name,
-                format_long_name,
-                file_size,
-                bit_rate,
-                probe_score,
-            })
-        }
+            }
+        })
+        .collect();
 
-        Err(error) => Err(error),
-    }
+    // Get format information
+    let format_name = context.format().name().to_string();
+    let format_long_name = context.format().description().to_string();
+    let file_size = std::fs::metadata(file_path).map(|m| m.len()).unwrap_or(0);
+    let bit_rate = context.bit_rate();
+    let probe_score = context.probe_score();
+
+    Ok(FileMetadata {
+        metadata,
+        best_video_stream,
+        best_audio_stream,
+        best_subtitle_stream,
+        duration,
+        streams,
+        format_name,
+        format_long_name,
+        file_size,
+        bit_rate,
+        probe_score,
+    })
 }

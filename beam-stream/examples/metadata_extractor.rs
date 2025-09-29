@@ -1,6 +1,6 @@
 //! Example program that extracts and displays metadata from a media file.
 
-use beam_stream::metadata;
+use beam_stream::utils::metadata;
 use ffmpeg_next as ffmpeg;
 
 use std::{env, path::Path};
@@ -92,7 +92,8 @@ fn main() -> Result<(), ffmpeg::Error> {
             println!("\tFrame rate: {:.3} fps", stream.frame_rate());
             println!(
                 "\tPixel format: {:?} ({}-bit)",
-                video.format, video.bit_depth
+                video.format,
+                video.bit_depth().unwrap_or(0)
             );
             let actual_bitrate = video.actual_bit_rate(&stream.metadata);
             println!("\tBit rate: {:.1} Mbps", actual_bitrate / 1_000_000.0);

@@ -1,13 +1,12 @@
 use axum::extract::{Path, Query};
 use axum::response::Response;
 use axum::{Json, http::StatusCode};
+use beam_stream::utils::metadata::FileMetadata;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use tracing::info;
 use utoipa::{IntoParams, ToSchema};
-
-use beam_stream::utils::metadata::extract_metadata;
 
 // TODO: Expand this to all the metadata actually needed by the server
 #[derive(Serialize, ToSchema)]
@@ -53,7 +52,7 @@ pub async fn get_media_metadata(Path(id): Path<String>) -> Result<Json<MediaInfo
         return Err(StatusCode::NOT_FOUND);
     }
 
-    match extract_metadata(&file_path) {
+    match FileMetadata::from_path(&file_path) {
         Ok(metadata) => {
             let mut width = None;
             let mut height = None;

@@ -1,0 +1,19 @@
+[package]
+name = "beam-stream"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.4"
+ffmpeg-next = "8.0.0"
+tokio = { version = "1.47.1", features = ["full"] }
+tracing = "0.1.41"
+tracing-subscriber = "0.3.20"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+
+[profile.release-with-debug]
+inherits = "release"
+debug = true

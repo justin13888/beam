@@ -179,16 +179,27 @@ impl StreamMetadata {
 
 #[derive(Clone, Debug)]
 pub struct FileMetadata {
+    /// Key-value pairs of file-level metadata tags (e.g., title, artist, album)
     pub metadata: HashMap<String, String>,
+    /// Index of the best/primary video stream, if any exists
     pub best_video_stream: Option<usize>,
+    /// Index of the best/primary audio stream, if any exists
     pub best_audio_stream: Option<usize>,
+    /// Index of the best/primary subtitle stream, if any exists
     pub best_subtitle_stream: Option<usize>,
+    /// Duration of the media file in AV_TIME_BASE units (1/AV_TIME_BASE seconds)
     pub duration: i64,
+    /// Collection of all streams (video, audio, subtitle, etc.) in the file
     pub streams: Vec<StreamMetadata>,
+    /// Short name of the container format (e.g., "mp4", "mkv", "avi")
     pub format_name: String,
+    /// Human-readable description of the container format
     pub format_long_name: String,
+    /// Size of the file in bytes
     pub file_size: u64,
+    /// Overall bitrate of the file in bits per second
     pub bit_rate: i64,
+    /// Probe score indicating confidence in format detection (0-100)
     pub probe_score: i32,
 }
 

@@ -12,6 +12,8 @@ color-eyre = "0.6.5"
 dotenvy = "0.15.7"
 eyre = "0.6.12"
 ffmpeg-next = { workspace = true }
+m3u8-rs = "6.0.0"
+num = { version = "0.4.3", features = ["serde"] }
 serde = { version = "1.0.228", features = ["derive"] }
 thiserror = "2.0.17"
 tokio = { workspace = true }

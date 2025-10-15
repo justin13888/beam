@@ -1,4 +1,6 @@
 use ffmpeg_next as ffmpeg;
+use num::rational::Ratio;
+use num::traits::cast::ToPrimitive;
 use std::{collections::HashMap, path::Path};
 use thiserror::Error;
 
@@ -8,9 +10,14 @@ use crate::utils::{
         PixelFormat,
     },
     format::{ChannelLayout, Disposition, SampleFormat},
-    math::Rational,
-    media::{CodecId, Discard, MediaType},
+    media::{CodecId, Discard},
 };
+
+pub type Rational = Ratio<i32>;
+
+fn into_rational(r: ffmpeg::Rational) -> Rational {
+    Ratio::new(r.0, r.1)
+}
 
 fn parse_duration_string(duration_str: &str) -> Option<f64> {
     // Parse duration strings like "00:45:23.000000000"
@@ -121,7 +128,7 @@ impl AudioMetadata {
 }
 
 #[derive(Clone, Debug)]
-pub struct StreamMetadata {
+pub struct VideoStreamMetadata {
     pub index: usize,
     pub time_base: Rational,
     pub start_time: i64,
@@ -130,22 +137,78 @@ pub struct StreamMetadata {
     pub disposition: Disposition,
     pub discard: Discard,
     pub rate: Rational,
-    pub medium: MediaType,
     pub codec_id: CodecId,
-    pub video: Option<VideoMetadata>,
-    pub audio: Option<AudioMetadata>,
+    pub video: VideoMetadata,
     pub metadata: HashMap<String, String>,
 }
 
-impl StreamMetadata {
+impl VideoStreamMetadata {
     /// Compute duration in seconds from duration and time_base
     pub fn duration_seconds(&self) -> f64 {
-        self.duration as f64 * self.time_base.to_f64()
+        self.duration as f64 * self.time_base.to_f64().unwrap()
     }
 
     /// Compute frame rate from the stream rate
     pub fn frame_rate(&self) -> f64 {
-        self.rate.to_f64()
+        self.rate.to_f64().unwrap()
+    }
+
+    /// Get the actual duration, using metadata fallback if duration is 0
+    pub fn actual_duration_seconds(&self, file_duration_seconds: f64) -> f64 {
+        if self.duration_seconds() > 0.0 {
+            self.duration_seconds()
+        } else {
+            // Try to get duration from metadata or fall back to file duration
+            if let Some(duration_str) = self.metadata.get("DURATION") {
+                parse_duration_string(duration_str).unwrap_or(file_duration_seconds)
+            } else {
+                file_duration_seconds
+            }
+        }
+    }
+
+    /// Get the actual frame count, using metadata fallback if frames is 0
+    pub fn actual_frames(&self) -> i64 {
+        if self.frames > 0 {
+            self.frames
+        } else {
+            // Try to get frame count from metadata
+            if let Some(frames_str) = self.metadata.get("NUMBER_OF_FRAMES") {
+                frames_str.parse::<i64>().unwrap_or(0)
+            } else {
+                0
+            }
+        }
+    }
+
+    /// Get a unique identifier based on codec and resolution
+    pub fn unique_id(&self) -> String {
+        format!(
+            "{}-{}x{}",
+            self.video.codec_name, self.video.width, self.video.height
+        ) // TODO: make this a hash of all relevant properties
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct AudioStreamMetadata {
+    pub index: usize,
+    pub time_base: Rational,
+    pub start_time: i64,
+    pub duration: i64,
+    pub frames: i64,
+    pub disposition: Disposition,
+    pub discard: Discard,
+    pub rate: Rational,
+    pub codec_id: CodecId,
+    pub audio: AudioMetadata,
+    pub metadata: HashMap<String, String>,
+}
+
+impl AudioStreamMetadata {
+    /// Compute duration in seconds from duration and time_base
+    pub fn duration_seconds(&self) -> f64 {
+        self.duration as f64 * self.time_base.to_f64().unwrap()
     }
 
     /// Get the actual duration, using metadata fallback if duration is 0
@@ -178,7 +241,96 @@ impl StreamMetadata {
 }
 
 #[derive(Clone, Debug)]
-pub struct FileMetadata {
+pub struct SubtitleStreamMetadata {
+    pub index: usize,
+    pub time_base: Rational,
+    pub start_time: i64,
+    pub duration: i64,
+    pub disposition: Disposition,
+    pub discard: Discard,
+    pub codec_id: CodecId,
+    pub metadata: HashMap<String, String>,
+    // TODO: See if we need SubtitleMetadata struct similar to VideoMetadata and AudioMetadata
+}
+
+impl SubtitleStreamMetadata {
+    /// Compute duration in seconds from duration and time_base
+    pub fn duration_seconds(&self) -> f64 {
+        self.duration as f64 * self.time_base.to_f64().unwrap()
+    }
+
+    /// Get the actual duration, using metadata fallback if duration is 0
+    pub fn actual_duration_seconds(&self, file_duration_seconds: f64) -> f64 {
+        if self.duration_seconds() > 0.0 {
+            self.duration_seconds()
+        } else {
+            // Try to get duration from metadata or fall back to file duration
+            if let Some(duration_str) = self.metadata.get("DURATION") {
+                parse_duration_string(duration_str).unwrap_or(file_duration_seconds)
+            } else {
+                file_duration_seconds
+            }
+        }
+    }
+}
+
+/// Stream metadata enapsulating various supported stream types
+#[derive(Clone, Debug)]
+pub enum StreamMetadata {
+    Video(VideoStreamMetadata),
+    Audio(AudioStreamMetadata),
+    Subtitle(SubtitleStreamMetadata),
+}
+
+impl StreamMetadata {
+    /// Get the stream index
+    pub fn index(&self) -> usize {
+        match self {
+            StreamMetadata::Video(v) => v.index,
+            StreamMetadata::Audio(a) => a.index,
+            StreamMetadata::Subtitle(s) => s.index,
+        }
+    }
+
+    /// Get the stream time_base
+    pub fn time_base(&self) -> Rational {
+        match self {
+            StreamMetadata::Video(v) => v.time_base,
+            StreamMetadata::Audio(a) => a.time_base,
+            StreamMetadata::Subtitle(s) => s.time_base,
+        }
+    }
+
+    /// Get the stream metadata
+    pub fn metadata(&self) -> &HashMap<String, String> {
+        match self {
+            StreamMetadata::Video(v) => &v.metadata,
+            StreamMetadata::Audio(a) => &a.metadata,
+            StreamMetadata::Subtitle(s) => &s.metadata,
+        }
+    }
+
+    /// Compute duration in seconds from duration and time_base
+    pub fn duration_seconds(&self) -> f64 {
+        match self {
+            StreamMetadata::Video(v) => v.duration_seconds(),
+            StreamMetadata::Audio(a) => a.duration_seconds(),
+            StreamMetadata::Subtitle(s) => s.duration_seconds(),
+        }
+    }
+
+    /// Get the actual duration, using metadata fallback if duration is 0
+    pub fn actual_duration_seconds(&self, file_duration_seconds: f64) -> f64 {
+        match self {
+            StreamMetadata::Video(v) => v.actual_duration_seconds(file_duration_seconds),
+            StreamMetadata::Audio(a) => a.actual_duration_seconds(file_duration_seconds),
+            StreamMetadata::Subtitle(s) => s.actual_duration_seconds(file_duration_seconds),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct VideoFileMetadata {
     /// Key-value pairs of file-level metadata tags (e.g., title, artist, album)
     pub metadata: HashMap<String, String>,
     /// Index of the best/primary video stream, if any exists
@@ -203,7 +355,7 @@ pub struct FileMetadata {
     pub probe_score: i32,
 }
 
-impl FileMetadata {
+impl VideoFileMetadata {
     /// From file path
     pub fn from_path(file_path: &Path) -> Result<Self, MetadataError> {
         let context = ffmpeg::format::input(file_path)?;
@@ -216,15 +368,15 @@ impl FileMetadata {
             .collect();
 
         // Find best streams
-        let best_video_stream = context
+        let mut best_video_stream = context
             .streams()
             .best(ffmpeg::media::Type::Video)
             .map(|s| s.index());
-        let best_audio_stream = context
+        let mut best_audio_stream = context
             .streams()
             .best(ffmpeg::media::Type::Audio)
             .map(|s| s.index());
-        let best_subtitle_stream = context
+        let mut best_subtitle_stream = context
             .streams()
             .best(ffmpeg::media::Type::Subtitle)
             .map(|s| s.index());
@@ -233,113 +385,161 @@ impl FileMetadata {
         let duration = context.duration();
 
         // Process all streams
-        let streams: Vec<StreamMetadata> = context
-            .streams()
-            .map(|stream| {
-                let codec =
-                    ffmpeg::codec::context::Context::from_parameters(stream.parameters()).unwrap();
-                let medium = codec.medium();
-                let codec_id = codec.id();
+        let mut streams: Vec<StreamMetadata> = vec![];
+        for (i, stream) in context.streams().enumerate() {
+            let codec =
+                ffmpeg::codec::context::Context::from_parameters(stream.parameters()).unwrap();
+            let medium = codec.medium();
+            let codec_id = codec.id();
 
-                let mut video = None;
-                let mut audio = None;
+            let metadata: HashMap<String, String> = stream
+                .metadata()
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect();
 
-                match medium {
-                    ffmpeg::media::Type::Video => {
-                        video = codec.decoder().video().ok().map(|video_decoder| {
-                            let codec_name = format!("{:?}", codec_id);
-                            let profile = format!("{:?}", video_decoder.profile());
-                            let level = "Unknown".to_string(); // Level not directly available in ffmpeg-next
+            let stream_metadata = match medium {
+                ffmpeg::media::Type::Video => {
+                    codec.decoder().video().ok().map(|video_decoder| {
+                        let codec_name = format!("{:?}", codec_id);
+                        let profile = format!("{:?}", video_decoder.profile());
+                        let level = "Unknown".to_string(); // Level not directly available in ffmpeg-next
 
-                            VideoMetadata {
-                                bit_rate: video_decoder.bit_rate(),
-                                max_rate: video_decoder.max_bit_rate(),
-                                delay: video_decoder.delay(),
-                                width: video_decoder.width(),
-                                height: video_decoder.height(),
-                                format: video_decoder.format().into(),
-                                has_b_frames: video_decoder.has_b_frames(),
-                                aspect_ratio: video_decoder.aspect_ratio().into(),
-                                color_space: video_decoder.color_space().into(),
-                                color_range: video_decoder.color_range().into(),
-                                color_primaries: video_decoder.color_primaries().into(),
-                                color_transfer_characteristic: video_decoder
-                                    .color_transfer_characteristic()
-                                    .into(),
-                                chroma_location: video_decoder.chroma_location().into(),
-                                references: video_decoder.references(),
-                                intra_dc_precision: video_decoder.intra_dc_precision(),
-                                profile,
-                                level,
-                                codec_name,
-                            }
-                        });
+                        let video = VideoMetadata {
+                            bit_rate: video_decoder.bit_rate(),
+                            max_rate: video_decoder.max_bit_rate(),
+                            delay: video_decoder.delay(),
+                            width: video_decoder.width(),
+                            height: video_decoder.height(),
+                            format: video_decoder.format().into(),
+                            has_b_frames: video_decoder.has_b_frames(),
+                            aspect_ratio: into_rational(video_decoder.aspect_ratio()),
+                            color_space: video_decoder.color_space().into(),
+                            color_range: video_decoder.color_range().into(),
+                            color_primaries: video_decoder.color_primaries().into(),
+                            color_transfer_characteristic: video_decoder
+                                .color_transfer_characteristic()
+                                .into(),
+                            chroma_location: video_decoder.chroma_location().into(),
+                            references: video_decoder.references(),
+                            intra_dc_precision: video_decoder.intra_dc_precision(),
+                            profile,
+                            level,
+                            codec_name,
+                        };
+
+                        StreamMetadata::Video(VideoStreamMetadata {
+                            index: stream.index(),
+                            time_base: into_rational(stream.time_base()),
+                            start_time: stream.start_time(),
+                            duration: stream.duration(),
+                            frames: stream.frames(),
+                            disposition: stream.disposition().into(),
+                            discard: stream.discard().into(),
+                            rate: into_rational(stream.rate()),
+                            codec_id: codec_id.into(),
+                            video,
+                            metadata,
+                        })
+                    })
+                }
+                ffmpeg::media::Type::Audio => codec.decoder().audio().ok().map(|audio_decoder| {
+                    let codec_name = format!("{:?}", codec_id);
+                    let profile = format!("{:?}", audio_decoder.profile());
+
+                    let mut title = String::new();
+                    let mut language = String::new();
+
+                    for (k, v) in stream.metadata().iter() {
+                        match k {
+                            "title" => title = v.to_string(),
+                            "language" => language = v.to_string(),
+                            _ => {}
+                        }
                     }
-                    ffmpeg::media::Type::Audio => {
-                        audio = codec.decoder().audio().ok().map(|audio_decoder| {
-                            let codec_name = format!("{:?}", codec_id);
-                            let profile = format!("{:?}", audio_decoder.profile());
 
-                            let mut title = String::new();
-                            let mut language = String::new();
+                    let audio = AudioMetadata {
+                        bit_rate: audio_decoder.bit_rate(),
+                        max_rate: audio_decoder.max_bit_rate(),
+                        delay: audio_decoder.delay(),
+                        rate: audio_decoder.rate(),
+                        channels: audio_decoder.channels(),
+                        format: audio_decoder.format().into(),
+                        frames: audio_decoder.frames(),
+                        align: audio_decoder.align(),
+                        channel_layout: audio_decoder.channel_layout().into(),
+                        codec_name,
+                        profile,
+                        title,
+                        language,
+                    };
 
-                            for (k, v) in stream.metadata().iter() {
-                                match k {
-                                    "title" => title = v.to_string(),
-                                    "language" => language = v.to_string(),
-                                    _ => {}
-                                }
-                            }
+                    StreamMetadata::Audio(AudioStreamMetadata {
+                        index: stream.index(),
+                        time_base: into_rational(stream.time_base()),
+                        start_time: stream.start_time(),
+                        duration: stream.duration(),
+                        frames: stream.frames(),
+                        disposition: stream.disposition().into(),
+                        discard: stream.discard().into(),
+                        rate: into_rational(stream.rate()),
+                        codec_id: codec_id.into(),
+                        audio,
+                        metadata,
+                    })
+                }),
+                ffmpeg::media::Type::Subtitle => {
+                    Some(StreamMetadata::Subtitle(SubtitleStreamMetadata {
+                        index: stream.index(),
+                        time_base: into_rational(stream.time_base()),
+                        start_time: stream.start_time(),
+                        duration: stream.duration(),
+                        disposition: stream.disposition().into(),
+                        discard: stream.discard().into(),
+                        codec_id: codec_id.into(),
+                        metadata,
+                    }))
+                }
+                ffmpeg::media::Type::Data
+                | ffmpeg::media::Type::Attachment
+                | ffmpeg::media::Type::Unknown => {
+                    // Skip other stream types
+                    None
+                }
+            };
 
-                            AudioMetadata {
-                                bit_rate: audio_decoder.bit_rate(),
-                                max_rate: audio_decoder.max_bit_rate(),
-                                delay: audio_decoder.delay(),
-                                rate: audio_decoder.rate(),
-                                channels: audio_decoder.channels(),
-                                format: audio_decoder.format().into(),
-                                frames: audio_decoder.frames(),
-                                align: audio_decoder.align(),
-                                channel_layout: audio_decoder.channel_layout().into(),
-                                codec_name,
-                                profile,
-                                title,
-                                language,
-                            }
-                        });
+            if let Some(stream_metadata) = stream_metadata {
+                let insertion_idx = streams.len();
+
+                // Update best stream indices if not already set
+                match &stream_metadata {
+                    StreamMetadata::Video(_) => {
+                        if let Some(idx) = best_video_stream
+                            && i == idx
+                        {
+                            best_video_stream = Some(insertion_idx);
+                        }
                     }
-                    ffmpeg::media::Type::Subtitle
-                    | ffmpeg::media::Type::Data
-                    | ffmpeg::media::Type::Attachment
-                    | ffmpeg::media::Type::Unknown => {
-                        // TODO: Handle other streams especially subtitles
-                        // No specific metadata extraction for these types yet
+                    StreamMetadata::Audio(_) => {
+                        if let Some(idx) = best_audio_stream
+                            && i == idx
+                        {
+                            best_audio_stream = Some(insertion_idx);
+                        }
+                    }
+                    StreamMetadata::Subtitle(_) => {
+                        if let Some(idx) = best_subtitle_stream
+                            && i == idx
+                        {
+                            best_subtitle_stream = Some(insertion_idx);
+                        }
                     }
                 }
 
-                let metadata = stream
-                    .metadata()
-                    .iter()
-                    .map(|(k, v)| (k.to_string(), v.to_string()))
-                    .collect();
-
-                StreamMetadata {
-                    index: stream.index(),
-                    time_base: stream.time_base().into(),
-                    start_time: stream.start_time(),
-                    duration: stream.duration(),
-                    frames: stream.frames(),
-                    disposition: stream.disposition().into(),
-                    discard: stream.discard().into(),
-                    rate: stream.rate().into(),
-                    medium: medium.into(),
-                    codec_id: codec_id.into(),
-                    video,
-                    audio,
-                    metadata,
-                }
-            })
-            .collect();
+                // Insert the stream metadata
+                streams.push(stream_metadata);
+            }
+        }
 
         // Get format information
         let format_name = context.format().name().to_string();
@@ -348,7 +548,7 @@ impl FileMetadata {
         let bit_rate = context.bit_rate();
         let probe_score = context.probe_score();
 
-        Ok(FileMetadata {
+        Ok(VideoFileMetadata {
             metadata,
             best_video_stream,
             best_audio_stream,
@@ -363,7 +563,7 @@ impl FileMetadata {
         })
     }
 
-    /// Compute duration in seconds from duration in AV_TIME_BASE units
+    /// Compute duration in seconds
     pub fn duration_seconds(&self) -> f64 {
         self.duration as f64 / f64::from(ffmpeg::ffi::AV_TIME_BASE)
     }

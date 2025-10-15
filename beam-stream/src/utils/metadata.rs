@@ -1,7 +1,10 @@
 use ffmpeg_next as ffmpeg;
 use num::rational::Ratio;
 use num::traits::cast::ToPrimitive;
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 use thiserror::Error;
 
 use crate::utils::{
@@ -331,6 +334,8 @@ impl StreamMetadata {
 
 #[derive(Clone, Debug)]
 pub struct VideoFileMetadata {
+    /// File path to video file
+    pub file_path: PathBuf,
     /// Key-value pairs of file-level metadata tags (e.g., title, artist, album)
     pub metadata: HashMap<String, String>,
     /// Index of the best/primary video stream, if any exists
@@ -549,6 +554,7 @@ impl VideoFileMetadata {
         let probe_score = context.probe_score();
 
         Ok(VideoFileMetadata {
+            file_path: file_path.to_path_buf(),
             metadata,
             best_video_stream,
             best_audio_stream,

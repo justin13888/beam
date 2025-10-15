@@ -1,4 +1,7 @@
-use ffmpeg_next as ffmpeg;
+use ffmpeg_next::{
+    self as ffmpeg,
+    ffi::{AVChannelLayout, av_channel_layout_describe},
+};
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub struct SampleFormat {
@@ -89,15 +92,30 @@ impl ChannelLayout {
         self.inner.channels().try_into().unwrap_or(0)
     }
 
-    /// Get a human-readable description of the channel layout
-    pub fn description(&self) -> String {
-        match self.channels() {
-            1 => "Mono".to_string(),
-            2 => "Stereo".to_string(),
-            6 => "5.1 Surround".to_string(),
-            8 => "7.1 Surround".to_string(),
-            n => format!("{} channels", n),
+    /// Get a string description of the channel layout
+    pub fn description(&self) -> Option<String> {
+        unsafe {
+            let mut buf = vec![0u8; 128];
+            let ret = av_channel_layout_describe(
+                &self.inner.0 as *const AVChannelLayout,
+                buf.as_mut_ptr() as *mut i8,
+                buf.len(),
+            );
+
+            if ret < 0 {
+                return None;
+            }
+
+            let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+            String::from_utf8(buf[..len].to_vec()).ok()
         }
+        // match self.channels() {
+        //     1 => "Mono".to_string(),
+        //     2 => "Stereo".to_string(),
+        //     6 => "5.1 Surround".to_string(),
+        //     8 => "7.1 Surround".to_string(),
+        //     n => format!("{} channels", n),
+        // }
     }
 
     /// Check if this is a standard surround sound layout

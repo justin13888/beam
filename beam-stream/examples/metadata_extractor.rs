@@ -5,13 +5,11 @@ use ffmpeg_next as ffmpeg;
 
 use std::{env, path::Path};
 
-fn main() -> Result<(), ffmpeg::Error> {
+fn main() -> Result<(), eyre::Error> {
     ffmpeg::init().unwrap();
 
     let file_path = env::args().nth(1).expect("missing file");
-    let metadata = VideoFileMetadata::from_path(Path::new(&file_path)).map_err(|e| match e {
-        beam_stream::utils::metadata::MetadataError::FfmpegError(err) => err,
-    })?;
+    let metadata = VideoFileMetadata::from_path(Path::new(&file_path))?;
 
     println!("=== FILE INFORMATION ===");
     println!(

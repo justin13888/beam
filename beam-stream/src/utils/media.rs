@@ -1,6 +1,6 @@
 use ffmpeg_next as ffmpeg;
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+#[derive(Eq, PartialEq, Copy, Clone)]
 pub struct MediaType {
     inner: ffmpeg::media::Type,
 }
@@ -48,13 +48,19 @@ impl MediaType {
     }
 }
 
+impl std::fmt::Debug for MediaType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.inner)
+    }
+}
+
 impl From<ffmpeg::media::Type> for MediaType {
     fn from(media_type: ffmpeg::media::Type) -> Self {
         MediaType { inner: media_type }
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+#[derive(Eq, PartialEq, Copy, Clone)]
 pub struct CodecId {
     inner: ffmpeg::codec::Id,
 }
@@ -68,17 +74,24 @@ impl CodecId {
     pub fn media_type(&self) -> MediaType {
         match self.inner {
             // Video codecs
-            ffmpeg::codec::Id::H264 | ffmpeg::codec::Id::H265 | ffmpeg::codec::Id::VP8 
-            | ffmpeg::codec::Id::VP9 | ffmpeg::codec::Id::AV1 | ffmpeg::codec::Id::MPEG1VIDEO
-            | ffmpeg::codec::Id::MPEG2VIDEO | ffmpeg::codec::Id::MPEG4 => {
-                MediaType::from(ffmpeg::media::Type::Video)
-            }
+            ffmpeg::codec::Id::H264
+            | ffmpeg::codec::Id::H265
+            | ffmpeg::codec::Id::VP8
+            | ffmpeg::codec::Id::VP9
+            | ffmpeg::codec::Id::AV1
+            | ffmpeg::codec::Id::MPEG1VIDEO
+            | ffmpeg::codec::Id::MPEG2VIDEO
+            | ffmpeg::codec::Id::MPEG4 => MediaType::from(ffmpeg::media::Type::Video),
             // Audio codecs
-            ffmpeg::codec::Id::AAC | ffmpeg::codec::Id::MP3 | ffmpeg::codec::Id::AC3 
-            | ffmpeg::codec::Id::EAC3 | ffmpeg::codec::Id::DTS | ffmpeg::codec::Id::TRUEHD
-            | ffmpeg::codec::Id::FLAC | ffmpeg::codec::Id::VORBIS | ffmpeg::codec::Id::OPUS => {
-                MediaType::from(ffmpeg::media::Type::Audio)
-            }
+            ffmpeg::codec::Id::AAC
+            | ffmpeg::codec::Id::MP3
+            | ffmpeg::codec::Id::AC3
+            | ffmpeg::codec::Id::EAC3
+            | ffmpeg::codec::Id::DTS
+            | ffmpeg::codec::Id::TRUEHD
+            | ffmpeg::codec::Id::FLAC
+            | ffmpeg::codec::Id::VORBIS
+            | ffmpeg::codec::Id::OPUS => MediaType::from(ffmpeg::media::Type::Audio),
             // Subtitle codecs
             ffmpeg::codec::Id::SUBRIP | ffmpeg::codec::Id::ASS | ffmpeg::codec::Id::WEBVTT => {
                 MediaType::from(ffmpeg::media::Type::Subtitle)
@@ -136,7 +149,10 @@ impl CodecId {
     pub fn supports_hardware_acceleration(&self) -> bool {
         matches!(
             self.inner,
-            ffmpeg::codec::Id::H264 | ffmpeg::codec::Id::H265 | ffmpeg::codec::Id::VP9 | ffmpeg::codec::Id::AV1
+            ffmpeg::codec::Id::H264
+                | ffmpeg::codec::Id::H265
+                | ffmpeg::codec::Id::VP9
+                | ffmpeg::codec::Id::AV1
         )
     }
 
@@ -144,7 +160,10 @@ impl CodecId {
     pub fn is_lossless(&self) -> bool {
         matches!(
             self.inner,
-            ffmpeg::codec::Id::FLAC | ffmpeg::codec::Id::SUBRIP | ffmpeg::codec::Id::ASS | ffmpeg::codec::Id::WEBVTT
+            ffmpeg::codec::Id::FLAC
+                | ffmpeg::codec::Id::SUBRIP
+                | ffmpeg::codec::Id::ASS
+                | ffmpeg::codec::Id::WEBVTT
         )
     }
 }
@@ -155,7 +174,19 @@ impl From<ffmpeg::codec::Id> for CodecId {
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+impl std::fmt::Display for CodecId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
+impl std::fmt::Debug for CodecId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.inner)
+    }
+}
+
+#[derive(Eq, PartialEq, Copy, Clone)]
 pub struct Discard {
     inner: ffmpeg::Discard,
 }
@@ -187,5 +218,11 @@ impl Discard {
 impl From<ffmpeg::Discard> for Discard {
     fn from(discard: ffmpeg::Discard) -> Self {
         Discard { inner: discard }
+    }
+}
+
+impl std::fmt::Debug for Discard {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.inner)
     }
 }

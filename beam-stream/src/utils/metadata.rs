@@ -18,8 +18,17 @@ use crate::utils::{
 
 pub type Rational = Ratio<i32>;
 
-fn into_rational(r: ffmpeg::Rational) -> Rational {
-    Ratio::new(r.0, r.1)
+// Convert ffmpeg::Rational to our Rational type
+// Returns Some(r) if valid, otherwise tuple (numer, denom).
+fn into_rational(r: ffmpeg::Rational) -> Result<Rational, (i32, i32)> {
+    let numer: i32 = r.0;
+    let denom: i32 = r.1;
+
+    if denom == 0 {
+        return Err((numer, denom));
+    }
+
+    Ok(Ratio::new(numer, denom))
 }
 
 fn parse_duration_string(duration_str: &str) -> Option<f64> {
@@ -253,7 +262,6 @@ pub struct SubtitleStreamMetadata {
     pub discard: Discard,
     pub codec_id: CodecId,
     pub metadata: HashMap<String, String>,
-    // TODO: See if we need SubtitleMetadata struct similar to VideoMetadata and AudioMetadata
 }
 
 impl SubtitleStreamMetadata {
@@ -274,6 +282,18 @@ impl SubtitleStreamMetadata {
                 file_duration_seconds
             }
         }
+    }
+
+    /// Get title from metadata if available
+    /// Returns empty string if not present.
+    pub fn title(&self) -> Option<String> {
+        self.metadata.get("title").cloned()
+    }
+
+    /// Get language from metadata if available
+    /// Returns empty string if not present.
+    pub fn language(&self) -> Option<String> {
+        self.metadata.get("language").cloned()
     }
 }
 
@@ -403,51 +423,74 @@ impl VideoFileMetadata {
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect();
 
-            let stream_metadata = match medium {
-                ffmpeg::media::Type::Video => {
-                    codec.decoder().video().ok().map(|video_decoder| {
-                        let codec_name = format!("{:?}", codec_id);
-                        let profile = format!("{:?}", video_decoder.profile());
-                        let level = "Unknown".to_string(); // Level not directly available in ffmpeg-next
+            let stream_metadata: Option<Result<StreamMetadata, MetadataError>> = match medium {
+                ffmpeg::media::Type::Video => codec.decoder().video().ok().map(|video_decoder| {
+                    let codec_name = format!("{:?}", codec_id);
+                    let profile = format!("{:?}", video_decoder.profile());
+                    let level = "Unknown".to_string(); // Level not directly available in ffmpeg-next
 
-                        let video = VideoMetadata {
-                            bit_rate: video_decoder.bit_rate(),
-                            max_rate: video_decoder.max_bit_rate(),
-                            delay: video_decoder.delay(),
-                            width: video_decoder.width(),
-                            height: video_decoder.height(),
-                            format: video_decoder.format().into(),
-                            has_b_frames: video_decoder.has_b_frames(),
-                            aspect_ratio: into_rational(video_decoder.aspect_ratio()),
-                            color_space: video_decoder.color_space().into(),
-                            color_range: video_decoder.color_range().into(),
-                            color_primaries: video_decoder.color_primaries().into(),
-                            color_transfer_characteristic: video_decoder
-                                .color_transfer_characteristic()
-                                .into(),
-                            chroma_location: video_decoder.chroma_location().into(),
-                            references: video_decoder.references(),
-                            intra_dc_precision: video_decoder.intra_dc_precision(),
-                            profile,
-                            level,
-                            codec_name,
-                        };
+                    let video = VideoMetadata {
+                        bit_rate: video_decoder.bit_rate(),
+                        max_rate: video_decoder.max_bit_rate(),
+                        delay: video_decoder.delay(),
+                        width: video_decoder.width(),
+                        height: video_decoder.height(),
+                        format: video_decoder.format().into(),
+                        has_b_frames: video_decoder.has_b_frames(),
+                        aspect_ratio: into_rational(video_decoder.aspect_ratio()).map_err(
+                            |(n, d)| {
+                                MetadataError::InvalidMetadata(format!(
+                                    "Invalid aspect ratio {}/{} in stream {}",
+                                    n,
+                                    d,
+                                    stream.index()
+                                ))
+                            },
+                        )?,
+                        color_space: video_decoder.color_space().into(),
+                        color_range: video_decoder.color_range().into(),
+                        color_primaries: video_decoder.color_primaries().into(),
+                        color_transfer_characteristic: video_decoder
+                            .color_transfer_characteristic()
+                            .into(),
+                        chroma_location: video_decoder.chroma_location().into(),
+                        references: video_decoder.references(),
+                        intra_dc_precision: video_decoder.intra_dc_precision(),
+                        profile,
+                        level,
+                        codec_name,
+                    };
 
-                        StreamMetadata::Video(VideoStreamMetadata {
-                            index: stream.index(),
-                            time_base: into_rational(stream.time_base()),
-                            start_time: stream.start_time(),
-                            duration: stream.duration(),
-                            frames: stream.frames(),
-                            disposition: stream.disposition().into(),
-                            discard: stream.discard().into(),
-                            rate: into_rational(stream.rate()),
-                            codec_id: codec_id.into(),
-                            video,
-                            metadata,
-                        })
-                    })
-                }
+                    let stream_metadata = StreamMetadata::Video(VideoStreamMetadata {
+                        index: stream.index(),
+                        time_base: into_rational(stream.time_base()).map_err(|(n, d)| {
+                            MetadataError::InvalidMetadata(format!(
+                                "Invalid time base {}/{} in stream {}",
+                                n,
+                                d,
+                                stream.index()
+                            ))
+                        })?,
+                        start_time: stream.start_time(),
+                        duration: stream.duration(),
+                        frames: stream.frames(),
+                        disposition: stream.disposition().into(),
+                        discard: stream.discard().into(),
+                        rate: into_rational(stream.rate()).map_err(|(n, d)| {
+                            MetadataError::InvalidMetadata(format!(
+                                "Invalid rate {}/{} in stream {}",
+                                n,
+                                d,
+                                stream.index()
+                            ))
+                        })?,
+                        codec_id: codec_id.into(),
+                        video,
+                        metadata,
+                    });
+
+                    Ok(stream_metadata)
+                }),
                 ffmpeg::media::Type::Audio => codec.decoder().audio().ok().map(|audio_decoder| {
                     let codec_name = format!("{:?}", codec_id);
                     let profile = format!("{:?}", audio_decoder.profile());
@@ -479,31 +522,54 @@ impl VideoFileMetadata {
                         language,
                     };
 
-                    StreamMetadata::Audio(AudioStreamMetadata {
+                    let stream_metadata = StreamMetadata::Audio(AudioStreamMetadata {
                         index: stream.index(),
-                        time_base: into_rational(stream.time_base()),
+                        time_base: into_rational(stream.time_base()).map_err(|(n, d)| {
+                            MetadataError::InvalidMetadata(format!(
+                                "Invalid time base {}/{} in stream {}",
+                                n,
+                                d,
+                                stream.index()
+                            ))
+                        })?,
                         start_time: stream.start_time(),
                         duration: stream.duration(),
                         frames: stream.frames(),
                         disposition: stream.disposition().into(),
                         discard: stream.discard().into(),
-                        rate: into_rational(stream.rate()),
+                        rate: into_rational(stream.rate()).map_err(|(n, d)| {
+                            MetadataError::InvalidMetadata(format!(
+                                "Invalid rate {}/{} in stream {}",
+                                n,
+                                d,
+                                stream.index()
+                            ))
+                        })?,
                         codec_id: codec_id.into(),
                         audio,
                         metadata,
-                    })
+                    });
+
+                    Ok(stream_metadata)
                 }),
                 ffmpeg::media::Type::Subtitle => {
-                    Some(StreamMetadata::Subtitle(SubtitleStreamMetadata {
+                    Some(Ok(StreamMetadata::Subtitle(SubtitleStreamMetadata {
                         index: stream.index(),
-                        time_base: into_rational(stream.time_base()),
+                        time_base: into_rational(stream.time_base()).map_err(|(n, d)| {
+                            MetadataError::InvalidMetadata(format!(
+                                "Invalid time base {}/{} in stream {}",
+                                n,
+                                d,
+                                stream.index()
+                            ))
+                        })?,
                         start_time: stream.start_time(),
                         duration: stream.duration(),
                         disposition: stream.disposition().into(),
                         discard: stream.discard().into(),
                         codec_id: codec_id.into(),
                         metadata,
-                    }))
+                    })))
                 }
                 ffmpeg::media::Type::Data
                 | ffmpeg::media::Type::Attachment
@@ -512,6 +578,7 @@ impl VideoFileMetadata {
                     None
                 }
             };
+            let stream_metadata = stream_metadata.and_then(|res| res.ok());
 
             if let Some(stream_metadata) = stream_metadata {
                 let insertion_idx = streams.len();
@@ -579,4 +646,6 @@ impl VideoFileMetadata {
 pub enum MetadataError {
     #[error("FFmpeg error: {0}")]
     FfmpegError(#[from] ffmpeg::Error),
+    #[error("Invalid metadata encountered: {0}")]
+    InvalidMetadata(String),
 }

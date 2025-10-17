@@ -20,8 +20,12 @@ We consider the role of caching at various layers below...
 
 A reverse proxy (could be different ones for different services) is strongly recommended to sit in front of all Beam services. Each service is written to be lean and avoids bulk caching itself (it simply serves Cache-Control headers).
 
-For Kubernetes deployment specifically, you may choose any ingress controller of your choice for majority of the HTTP traffic but the large files from `beam-stream` necessitates a dedicated caching proxy (e.g. Varnish or Nginx).
+For Kubernetes deployment specifically, you may choose any ingress controller of your choice for majority of the HTTP traffic but the large files from `beam-stream`, we recommend letting it go through and be handled by the application server's own caching layer (see below).
 
 ## Application Server
 
-While files (which could be quite large) are not cached at the application layer, all the metadata used to construct responses are typically cached in-memory using Redis or in database (e.g., Postgres).
+While all the previous layers cache on the HTTP level, certain optimizations require application-level caching. For example, let's say you want to download a 100GB+ file that is normally generated on-the-fly. Normally, a cold request would have high latency; instead, we may cache the generated file on disk for subsequent requests to be served directly from disk.
+
+## Concluding Remarks
+
+In practice, besides specific scenarios, responses are handled using various caches (e.g., in-memory Redis cache, cached metadata in Postgres). During development, just employ sufficient unit and integration testing while minimizing developer burden.

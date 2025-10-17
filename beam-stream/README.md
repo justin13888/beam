@@ -10,10 +10,16 @@ A high-performance streaming service built with Rust and Axum.
     cp .env.example .env
     ```
 
+- Install some dependencies:
+
+    ```bash
+    cargo install cargo-watch
+    ```
+
 - Start development server:
 
     ```bash
-    cargo run
+    cargo watch -x run
     ```
 
 ## API Documentation

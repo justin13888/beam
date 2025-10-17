@@ -10,6 +10,8 @@ use health::*;
 use media::*;
 // use upload::*;
 
+use crate::models::*;
+
 /// Main API documentation structure
 #[derive(OpenApi)]
 #[openapi(
@@ -27,8 +29,15 @@ use media::*;
     components(schemas(
         HealthStatus,
         // UploadResponse,
-        MediaInfo,
-        ErrorResponse
+        ErrorResponse,
+        MediaMetadata,
+        Title,
+        ExternalIdentifiers,
+        Ratings,
+        ShowMetadata,
+        SeasonMetadata,
+        ShowDates,
+        EpisodeMetadata,
     )),
     tags(
         (name = "health", description = "Health check endpoints"),

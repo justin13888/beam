@@ -1,3 +1,4 @@
+mod models;
 mod routes;
 
 use eyre::{Result, eyre};
@@ -42,6 +43,9 @@ async fn main() -> Result<()> {
     tokio::fs::create_dir_all(config.cache_dir)
         .await
         .expect("Failed to create cache directory");
+
+    // Initialize ffmpeg bindings
+    ffmpeg_next::init().map_err(|e| eyre!("Failed to initialize ffmpeg: {}", e))?;
 
     let (router, api) = create_router().split_for_parts();
     let router = router.merge(Scalar::with_url("/openapi", api));

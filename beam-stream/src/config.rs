@@ -19,6 +19,7 @@ pub enum ConfigError {
 #[derive(Debug, Clone)]
 pub struct Config {
     pub bind_address: String,
+    pub server_url: String,
     pub enable_metrics: bool,
     pub video_dir: PathBuf,
     pub cache_dir: PathBuf,
@@ -28,6 +29,8 @@ impl Config {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self, ConfigError> {
         let bind_address = env::var("BIND_ADDRESS").unwrap_or_else(|_| "0.0.0.0:3000".to_string());
+        let server_url =
+            env::var("SERVER_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
 
         let enable_metrics = parse_bool_env("ENABLE_METRICS", false)?;
 
@@ -36,6 +39,7 @@ impl Config {
 
         Ok(Config {
             bind_address,
+            server_url,
             enable_metrics,
             video_dir,
             cache_dir,

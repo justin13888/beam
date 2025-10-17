@@ -19,4 +19,4 @@ This is the primary protocol used for adaptive bitrate (ABR) streaming. It suppo
 
 Fragmented MP4 or fMP4 is possible for single bitrate streams. It is ideal for direct playback of original quality streams with minimal server-side processing. It is supported on most modern browsers and platforms.
 
-When HLS/DASH are unavailable/unsupported, fMP4 can be used as a fallback or more likely, to support offline viewing on certain platforms.
+When HLS/DASH are unavailable/unsupported, fMP4 can be used as a fallback or more likely, to support offline viewing on certain platforms. While fMP4 could be live-remuxed, it is intentionally unimplemented to avoid scalability issues and potential for client abuse. Instead, fMP4 files could be remuxed as whole (and cached) when download is requested.

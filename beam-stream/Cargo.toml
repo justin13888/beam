@@ -12,12 +12,13 @@ color-eyre = "0.6.5"
 dotenvy = "0.15.7"
 eyre = "0.6.12"
 ffmpeg-next = { workspace = true }
+log = { workspace = true, features = ["serde", "release_max_level_debug"] }
 m3u8-rs = "6.0.0"
 num = { version = "0.4.3", features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 tokio = { workspace = true }
-tracing = { workspace = true }
+tracing = { workspace = true, features = ["log", "release_max_level_debug"] }
 tracing-subscriber = { workspace = true, features = ["json", "env-filter"] }
 utoipa = { version = "5.4.0", features = [
     "axum_extras",
@@ -28,3 +29,4 @@ utoipa = { version = "5.4.0", features = [
 utoipa-axum = "0.2.0"
 utoipa-scalar = { version = "0.3.0", features = ["axum"] }
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
+xxhash-rust = { version = "0.8.15", features = ["xxh3"] }

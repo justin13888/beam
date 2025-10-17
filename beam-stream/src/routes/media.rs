@@ -1,7 +1,5 @@
 use axum::extract::Path;
 use axum::{Json, http::StatusCode};
-use beam_stream::utils::metadata::VideoFileMetadata;
-use std::path::PathBuf;
 use tracing::info;
 
 use crate::models::{MediaMetadata, SeasonMetadata, ShowDates, ShowMetadata, Title};

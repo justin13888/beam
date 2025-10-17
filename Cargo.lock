@@ -140,6 +140,7 @@ dependencies = [
  "dotenvy",
  "eyre",
  "ffmpeg-next",
+ "log",
  "m3u8-rs",
  "num",
  "serde",
@@ -151,6 +152,7 @@ dependencies = [
  "utoipa-axum",
  "utoipa-scalar",
  "utoipa-swagger-ui",
+ "xxhash-rust",
 ]
 
 [[package]]
@@ -837,6 +839,9 @@ name = "log"
 version = "0.4.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34080505efa8e45a4b816c349525ebe327ceaa8559756f0356cba97ef3bf7432"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "m3u8-rs"
@@ -1980,6 +1985,12 @@ name = "writeable"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea2f10b9bb0928dfb1b42b65e1f9e36f7f54dbdf08457afefb38afcdec4fa2bb"
+
+[[package]]
+name = "xxhash-rust"
+version = "0.8.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdd20c5420375476fbd4394763288da7eb0cc0b8c11deed431a91562af7335d3"
 
 [[package]]
 name = "yoke"

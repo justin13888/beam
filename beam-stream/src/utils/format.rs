@@ -2,8 +2,44 @@ use ffmpeg_next::{
     self as ffmpeg,
     ffi::{AVChannelLayout, av_channel_layout_describe},
 };
+use serde::{Deserialize, Serialize};
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Resolution {
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Resolution {
+    pub fn new(width: u32, height: u32) -> Self {
+        Self { width, height }
+    }
+
+    /// Get aspect ratio as a float
+    pub fn aspect_ratio(&self) -> Option<f32> {
+        if self.height == 0 {
+            return None;
+        }
+        Some(self.width as f32 / self.height as f32)
+    }
+}
+
+impl std::fmt::Debug for Resolution {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}x{}", self.width, self.height)
+    }
+}
+
+impl Into<m3u8_rs::Resolution> for Resolution {
+    fn into(self) -> m3u8_rs::Resolution {
+        m3u8_rs::Resolution {
+            width: self.width as u64,
+            height: self.height as u64,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SampleFormat {
     inner: ffmpeg::format::Sample,
 }

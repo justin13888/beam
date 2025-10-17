@@ -1,6 +1,8 @@
 mod models;
 mod routes;
 
+use std::sync::atomic::Ordering;
+
 use eyre::{Result, eyre};
 use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
@@ -46,6 +48,9 @@ async fn main() -> Result<()> {
 
     // Initialize ffmpeg bindings
     ffmpeg_next::init().map_err(|e| eyre!("Failed to initialize ffmpeg: {}", e))?;
+
+    // Initialize m3u8-rs static variables
+    m3u8_rs::WRITE_OPT_FLOAT_PRECISION.store(5, Ordering::Relaxed);
 
     let (router, api) = create_router().split_for_parts();
     let router = router.merge(Scalar::with_url("/openapi", api));

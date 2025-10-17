@@ -12,7 +12,7 @@ use crate::utils::{
         ChromaLocation, ColorPrimaries, ColorRange, ColorSpace, ColorTransferCharacteristic,
         PixelFormat,
     },
-    format::{ChannelLayout, Disposition, SampleFormat},
+    format::{ChannelLayout, Disposition, Resolution, SampleFormat},
     media::{CodecId, Discard},
 };
 
@@ -84,6 +84,11 @@ impl VideoMetadata {
     /// Returns None if unknown.
     pub fn bit_depth(&self) -> Option<u8> {
         self.format.bit_depth()
+    }
+
+    /// Get resolution
+    pub fn resolution(&self) -> Resolution {
+        Resolution::new(self.width, self.height)
     }
 }
 

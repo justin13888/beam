@@ -147,7 +147,6 @@ dependencies = [
  "m3u8-rs",
  "num",
  "num_cpus",
- "once_cell",
  "rayon",
  "serde",
  "tempfile",

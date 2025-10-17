@@ -5,12 +5,11 @@
 //! configured with physical CPU cores (ignoring SMT/hyper-threading) for optimal
 //! CPU-bound hashing performance.
 
-use once_cell::sync::Lazy;
 use rayon::ThreadPool;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use xxhash_rust::xxh3::Xxh3;
 
 /// Global hash service instance.
@@ -18,7 +17,7 @@ use xxhash_rust::xxh3::Xxh3;
 /// This is initialized lazily on first use and manages a dedicated thread pool
 /// for CPU-bound hashing operations. The thread pool is configured to use one
 /// thread per physical CPU core, ignoring SMT (simultaneous multithreading).
-static HASH_SERVICE: Lazy<HashService> = Lazy::new(HashService::new);
+static HASH_SERVICE: LazyLock<HashService> = LazyLock::new(HashService::new);
 
 /// A service that manages file hashing operations using a dedicated Rayon thread pool.
 ///

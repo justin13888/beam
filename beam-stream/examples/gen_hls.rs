@@ -1,18 +1,15 @@
 //! Example code to generate a HLS media playlist (to a hypothetical server) from a video file
 
-// TODO: THIS EXAMPLE IS INCOMPLETE
-
 use beam_stream::utils::file::FileType;
 use beam_stream::utils::metadata::VideoFileMetadata;
 use beam_stream::utils::stream::StreamBuilder;
 use beam_stream::utils::stream::hls::HlsStreamGenerator;
 use eyre::Result;
 use m3u8_rs::WRITE_OPT_FLOAT_PRECISION;
-use std::{path::PathBuf, sync::atomic::Ordering};
+use std::{path::PathBuf, sync::atomic::Ordering, time::Instant};
 
-// TODO: Note there are still inaccuracies with the generated playlists
-
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     // Get first argument as file path
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
@@ -20,6 +17,8 @@ fn main() -> Result<()> {
         std::process::exit(1);
     }
     let file_path = PathBuf::from(&args[1]);
+
+    let start_time = Instant::now();
 
     // Initialize FFmpeg
     ffmpeg_next::init().unwrap();
@@ -33,7 +32,8 @@ fn main() -> Result<()> {
     // === Generate HLS playlist in directory ===
     let mut stream_builder = StreamBuilder::new();
     stream_builder.add_file(FileType::Video, &file_path);
-    let stream_configuration = stream_builder.build()?;
+    let stream_configuration = stream_builder.build().await?;
+    println!("Stream configuration: {:#?}", stream_configuration);
     let hls_generator = HlsStreamGenerator::from(stream_configuration);
     let master_playlist = hls_generator.get_master_playlist();
     let playlists = hls_generator.get_media_playlists();
@@ -57,6 +57,8 @@ fn main() -> Result<()> {
     for (uri, pl) in stream_playlists.iter() {
         println!("{uri}:\n{pl}\n");
     }
+
+    println!("Total time: {:.2?}", start_time.elapsed());
 
     Ok(())
 }

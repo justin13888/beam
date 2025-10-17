@@ -12,6 +12,8 @@ use super::config::StreamConfiguration;
 
 const HLS_VERSION: usize = 6; // HLS 6 is a good minimum for fMP4, CMAF, low-latency streaming, segment-related features
 
+// TODO: There are still inaccuracies with the generated playlists
+
 pub struct HlsStreamGenerator {
     configuration: StreamConfiguration,
 }

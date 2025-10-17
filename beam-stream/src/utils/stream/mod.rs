@@ -34,8 +34,8 @@ impl StreamBuilder {
         self
     }
 
-    /// Get stream configuration
-    pub fn build(self) -> Result<StreamConfiguration, StreamBuilderError> {
+    /// Build the stream configuration by processing all added files.
+    pub async fn build(self) -> Result<StreamConfiguration, StreamBuilderError> {
         // Ensure at least one video file is provided
         if !self.files.iter().any(|(ft, _)| *ft == FileType::Video) {
             return Err(StreamBuilderError::NoVideoFiles);
@@ -73,104 +73,130 @@ impl StreamBuilder {
                 return Err(StreamBuilderError::FileNotFound(file_path.clone()));
             }
 
-            // TODO: Add shared file lock until end of this block
+            // Open file and acquire shared lock to prevent modifications during processing
+            let file = std::fs::File::open(&file_path)
+                .map_err(|e| StreamBuilderError::FileLockError(file_path.clone(), e))?;
+            fs2::FileExt::lock_shared(&file)
+                .map_err(|e| StreamBuilderError::FileLockError(file_path.clone(), e))?;
 
-            // Verify file path matches file type
-            // Process into stream configuration
-            match file_type {
-                FileType::Video => {
-                    // Process video file
-                    let file_metadata = VideoFileMetadata::from_path(&file_path)?;
-                    // let best_video_stream_idx = file_metadata.best_video_stream; // TODO: Find use for this value
-                    let best_audio_stream_idx = file_metadata.best_audio_stream;
-                    let best_subtitle_stream_idx = file_metadata.best_subtitle_stream;
+            // Spawn concurrent tasks: metadata extraction and file hashing
+            // Both will hold the shared lock until they complete
+            let hash_path = file_path.clone();
+            let hash_task =
+                tokio::spawn(async move { crate::services::hash::hash_file(&hash_path).await });
 
-                    for (j, stream_metadata) in file_metadata.streams.iter().enumerate() {
-                        match stream_metadata {
-                            StreamMetadata::Video(stream_metadata) => {
-                                // Append video stream
-                                let stream = VideoStream {
-                                    source_file_index: i,
-                                    source_stream_index: j,
-                                    codec: OutputVideoCodec::Remuxed(
-                                        stream_metadata.video.codec_name.clone(),
-                                    ),
-                                    max_rate: stream_metadata.video.max_rate,
-                                    bit_rate: stream_metadata.video.bit_rate,
-                                    resolution: stream_metadata.video.resolution(),
-                                    frame_rate: stream_metadata.rate,
-                                };
+            // Process metadata extraction in current task
+            let metadata_result = async {
+                match file_type {
+                    FileType::Video => {
+                        // Process video file
+                        let file_metadata = VideoFileMetadata::from_path(&file_path)?;
+                        // let best_video_stream_idx = file_metadata.best_video_stream; // TODO: Find use for this value
+                        let best_audio_stream_idx = file_metadata.best_audio_stream;
+                        let best_subtitle_stream_idx = file_metadata.best_subtitle_stream;
 
-                                streams.push(OutputStream::Video(stream));
+                        let mut local_streams = Vec::new();
 
-                                // TODO: Add audio stream if present vv. Need metadata.rs to extract audio metadata out of video track as well? does ffmpeg always separate the video and audio streams?
-                                // // Append corresponding audio stream (required by CMAF)
-                                // let stream = AudioStream {
-                                //     source_file_index: i,
-                                //     source_stream_index: j,
-                                //     codec: OutputAudioCodec::Remuxed(
-                                //         stream_metadata.video.codec_name.clone(),
-                                //     ),
-                                //     // max_rate: stream_metadata.video.max_rate,
-                                //     // bit_rate: stream_metadata.video.bit_rate,
-                                //     // resolution: stream_metadata.video.resolution(),
-                                //     // frame_rate: stream_metadata.rate,
-                                // };
+                        for (j, stream_metadata) in file_metadata.streams.iter().enumerate() {
+                            match stream_metadata {
+                                StreamMetadata::Video(stream_metadata) => {
+                                    // Append video stream
+                                    let stream = VideoStream {
+                                        source_file_index: i,
+                                        source_stream_index: j,
+                                        codec: OutputVideoCodec::Remuxed(
+                                            stream_metadata.video.codec_name.clone(),
+                                        ),
+                                        max_rate: stream_metadata.video.max_rate,
+                                        bit_rate: stream_metadata.video.bit_rate,
+                                        resolution: stream_metadata.video.resolution(),
+                                        frame_rate: stream_metadata.rate,
+                                    };
 
-                                // streams.push(OutputStream::Audio(stream));
-                            }
-                            StreamMetadata::Audio(stream_metadata) => {
-                                let stream = AudioStream {
-                                    source_file_index: i,
-                                    source_stream_index: j,
-                                    codec: OutputAudioCodec::Remuxed(
-                                        // TODO: Verify we don't transcode audio unnecessarily
-                                        stream_metadata.audio.codec_name.clone(),
-                                    ),
-                                    language: {
-                                        let s = &stream_metadata.audio.language;
-                                        if s.is_empty() { None } else { Some(s.clone()) }
-                                    },
-                                    title: stream_metadata.audio.title.clone(),
-                                    channel_layout: stream_metadata
-                                        .audio
-                                        .channel_layout
-                                        .description(),
-                                    is_default: Some(j) == best_audio_stream_idx, // TODO: Verify this works
-                                    is_autoselect: true, // TODO: Verify this is correct
-                                };
+                                    local_streams.push(OutputStream::Video(stream));
 
-                                streams.push(OutputStream::Audio(stream));
-                            }
-                            StreamMetadata::Subtitle(stream_metadata) => {
-                                let stream = SubtitleStream {
-                                    source_file_index: i,
-                                    source_stream_index: j,
-                                    codec: OutputSubtitleCodec::WebVTT, // We just use WebVTT no matter what for now (CMAF-compliant)
-                                    language: stream_metadata.language(),
-                                    title: stream_metadata.title(),
-                                    is_default: Some(j) == best_subtitle_stream_idx, // TODO: Verify this works
-                                    is_autoselect: true,
-                                    is_forced: false, // TODO: Detect forced subtitles
-                                };
+                                    // TODO: Add audio stream if present vv. Need metadata.rs to extract audio metadata out of video track as well? does ffmpeg always separate the video and audio streams?
+                                    // // Append corresponding audio stream (required by CMAF)
+                                    // let stream = AudioStream {
+                                    //     source_file_index: i,
+                                    //     source_stream_index: j,
+                                    //     codec: OutputAudioCodec::Remuxed(
+                                    //         stream_metadata.video.codec_name.clone(),
+                                    //     ),
+                                    //     // max_rate: stream_metadata.video.max_rate,
+                                    //     // bit_rate: stream_metadata.video.bit_rate,
+                                    //     // resolution: stream_metadata.video.resolution(),
+                                    //     // frame_rate: stream_metadata.rate,
+                                    // };
 
-                                streams.push(OutputStream::Subtitle(stream));
+                                    // local_streams.push(OutputStream::Audio(stream));
+                                }
+                                StreamMetadata::Audio(stream_metadata) => {
+                                    let stream = AudioStream {
+                                        source_file_index: i,
+                                        source_stream_index: j,
+                                        codec: OutputAudioCodec::Remuxed(
+                                            // TODO: Verify we don't transcode audio unnecessarily
+                                            stream_metadata.audio.codec_name.clone(),
+                                        ),
+                                        language: {
+                                            let s = &stream_metadata.audio.language;
+                                            if s.is_empty() { None } else { Some(s.clone()) }
+                                        },
+                                        title: stream_metadata.audio.title.clone(),
+                                        channel_layout: stream_metadata
+                                            .audio
+                                            .channel_layout
+                                            .description(),
+                                        is_default: Some(j) == best_audio_stream_idx, // TODO: Verify this works
+                                        is_autoselect: true, // TODO: Verify this is correct
+                                    };
+
+                                    local_streams.push(OutputStream::Audio(stream));
+                                }
+                                StreamMetadata::Subtitle(stream_metadata) => {
+                                    let stream = SubtitleStream {
+                                        source_file_index: i,
+                                        source_stream_index: j,
+                                        codec: OutputSubtitleCodec::WebVTT, // We just use WebVTT no matter what for now (CMAF-compliant)
+                                        language: stream_metadata.language(),
+                                        title: stream_metadata.title(),
+                                        is_default: Some(j) == best_subtitle_stream_idx, // TODO: Verify this works
+                                        is_autoselect: true,
+                                        is_forced: false, // TODO: Detect forced subtitles
+                                    };
+
+                                    local_streams.push(OutputStream::Subtitle(stream));
+                                }
                             }
                         }
+
+                        Ok::<Vec<OutputStream>, StreamBuilderError>(local_streams)
+                    }
+                    FileType::Subtitle => {
+                        // Process subtitle file
+                        Ok(Vec::new())
                     }
                 }
-                FileType::Subtitle => {
-                    // Process subtitle file
-                }
             }
+            .await?;
 
-            // TODO: Hash file
-            // TODO: Append to stream configuration: sources
-            sources.push((
-                file_type,
-                file_path,
-                XXH3Hash::new(0), // TODO: Replace with actual hash
-            ))
+            // Wait for hash computation to complete
+            let hash_value = hash_task
+                .await
+                .map_err(StreamBuilderError::HashTaskError)?
+                .map_err(|e| StreamBuilderError::HashError(file_path.clone(), e))?;
+
+            // Release the shared lock now that both tasks are complete
+            fs2::FileExt::unlock(&file)
+                .map_err(|e| StreamBuilderError::FileLockError(file_path.clone(), e))?;
+            drop(file);
+
+            // Append processed streams
+            streams.extend(metadata_result);
+
+            // Append to sources
+            sources.push((file_type, file_path, XXH3Hash::new(hash_value)))
         }
 
         Ok(StreamConfiguration {
@@ -189,4 +215,10 @@ pub enum StreamBuilderError {
     FileNotFound(PathBuf),
     #[error("Failed to read video metadata: {0}")]
     VideoMetadataError(#[from] MetadataError),
+    #[error("Failed to acquire file lock on {0}: {1}")]
+    FileLockError(PathBuf, std::io::Error),
+    #[error("Hash task failed: {0}")]
+    HashTaskError(tokio::task::JoinError),
+    #[error("Failed to hash file {0}: {1}")]
+    HashError(PathBuf, std::io::Error),
 }

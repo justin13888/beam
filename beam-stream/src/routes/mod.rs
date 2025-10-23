@@ -24,11 +24,10 @@ use crate::models::*;
         health_check,
         // upload_file,
         get_media_metadata,
-        // stream_media
+        stream_media
     ),
     components(schemas(
         HealthStatus,
-        // UploadResponse,
         ErrorResponse,
         MediaMetadata,
         Title,
@@ -53,5 +52,5 @@ pub fn create_router() -> OpenApiRouter {
         .routes(routes!(health_check))
         // .routes(routes!(upload_file))
         .routes(routes!(get_media_metadata))
-    // .routes(routes!(stream_media))
+        .routes(routes!(stream_media))
 }

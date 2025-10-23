@@ -6,7 +6,7 @@ Beam is a high-performance, scalable media server to stream video, audio, and ot
 
 ## Features
 
-- [ ] HLS/DASH streaming
+- [x] HLS/DASH streaming
 - [ ] Real-time remuxing/transcoding with hardware acceleration (NVENC, VAAPI)
 - [ ] Fully-distributed and Kubernetes-native architecture
 
@@ -14,7 +14,7 @@ Beam is a high-performance, scalable media server to stream video, audio, and ot
 
 ## Motivation
 
-Beam originally started as a project to surpass the limitations of Jellyfin, a popular open-source media server. Jellyfin is a great project, but we need a more modern, straightforward solution that is as easy to use but more feature-rich and actively maintained.
+Beam originally started as a project to surpass the limitations of Jellyfin, a popular open-source media server. Jellyfin is a great project, but we need a more modern, straightforward solution that is as easy to use but more feature-rich and actively developed.
 
 ## Architecture
 
@@ -26,10 +26,11 @@ Beam consists of multiple backend services that work together to provide a seaml
 <!-- - `beam-index`: Media indexing service that scans and indexes media files on disk (Rust). -->
 <!-- - `beam-recommendation`: Recommendation service that provides personalized content recommendations based on user preferences and viewing history (Python/PyTorch). TODO -->
 
+<!-- TODO: Add back these components ^^ -->
+
 Currently, there is one client app to interact with Beam:
 
 - `beam-web`: Web frontend that provides a user-friendly interface to browse and stream media content (TypeScript/React).
-
 
 <!-- TODO: Add architecture diagram -->
 

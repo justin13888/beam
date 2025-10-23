@@ -1,35 +1,27 @@
-# beam-stream
+# Beam Stream
 
-Media streaming and management API for Beam. Acts as JSON API for Beam frontends to interact with Beam's ,media-related backend services.
+A high-performance streaming service built with Rust and Axum.
 
-## Features
+## Setup
 
-WIP
+- Copy `.env.example` to `.env` and modify as needed:
 
-<!-- TODO -->
+    ```bash
+    cp .env.example .env
+    ```
 
-## Development
+- Install some dependencies:
 
-### Prerequisites
+    ```bash
+    cargo install cargo-watch
+    ```
 
-- Rust and Cargo
+- Start development server:
 
-### Setup
+    ```bash
+    cargo watch -x run
+    ```
 
-```sh
-cargo run
-```
+## API Documentation
 
-or
-
-```sh
-cargo watch -x run
-```
-
-Default port is 8080. Prometheus metrics port is 8081.
-
-### Building Docker image
-
-```sh
-docker build -t beam-stream .
-```
+See OpenAPI docs: `http://localhost:3000/openapi`

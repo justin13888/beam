@@ -1,0 +1,5 @@
+{
+	"files.associations": {
+		"beam-docs/wrangler.json": "jsonc"
+	}
+}

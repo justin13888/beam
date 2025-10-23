@@ -13,11 +13,46 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StreamConfiguration {
     /// List of all input sources to construct a stream.
-    pub sources: Vec<(FileType, PathBuf, XXH3Hash)>,
+    pub sources: Vec<(FileType, PathBuf, XXH3Hash)>, // TODO: Refactor this tuple into its own struct
     /// A collection of all output streams in the final media
     pub streams: Vec<OutputStream>,
     /// Target segment duration in seconds
     pub target_duration: u64,
+}
+
+impl StreamConfiguration {
+    /// Get all video streams
+    pub fn video_streams(&self) -> Vec<&VideoStream> {
+        self.streams
+            .iter()
+            .filter_map(|s| match s {
+                OutputStream::Video(vs) => Some(vs),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Get all audio streams
+    pub fn audio_streams(&self) -> Vec<&AudioStream> {
+        self.streams
+            .iter()
+            .filter_map(|s| match s {
+                OutputStream::Audio(as_) => Some(as_),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Get all subtitle streams
+    pub fn subtitle_streams(&self) -> Vec<&SubtitleStream> {
+        self.streams
+            .iter()
+            .filter_map(|s| match s {
+                OutputStream::Subtitle(ss) => Some(ss),
+                _ => None,
+            })
+            .collect()
+    }
 }
 
 /// Different streams

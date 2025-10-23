@@ -30,6 +30,7 @@ async fn main() -> Result<()> {
                 .unwrap_or_else(|_| EnvFilter::new("beam_stream=info,tower_http=debug,axum=debug")),
         )
         .init();
+    // TODO: Log to something besides stdout to make filtering logs easier
 
     info!("Starting beam-stream...");
 

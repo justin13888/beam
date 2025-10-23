@@ -20,6 +20,7 @@ num = { version = "0.4.3", features = ["serde"] }
 num_cpus = "1.17.0"
 rayon = "1.11.0"
 serde = { workspace = true, features = ["derive"] }
+tempfile = "3.23.0"
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true, features = ["log", "release_max_level_debug"] }
@@ -37,4 +38,3 @@ xxhash-rust = { version = "0.8.15", features = ["xxh3"] }
 
 [dev-dependencies]
 futures = "0.3.31"
-tempfile = "3.23.0"

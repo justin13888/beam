@@ -6,6 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use thiserror::Error;
+use tracing::trace;
 
 use crate::utils::{
     color::{
@@ -21,6 +22,7 @@ pub type Rational = Ratio<i32>;
 // Convert ffmpeg::Rational to our Rational type
 // Returns Some(r) if valid, otherwise tuple (numer, denom).
 fn into_rational(r: ffmpeg::Rational) -> Result<Rational, (i32, i32)> {
+    // trace!("Converting ffmpeg::Rational {:?} to Rational", r);
     let numer: i32 = r.0;
     let denom: i32 = r.1;
 
@@ -153,7 +155,8 @@ pub struct VideoStreamMetadata {
     pub frames: i64,
     pub disposition: Disposition,
     pub discard: Discard,
-    pub rate: Rational,
+    /// Base stream rate, if could be reliably determined
+    pub rate: Option<Rational>,
     pub codec_id: CodecId,
     pub video: VideoMetadata,
     pub metadata: HashMap<String, String>,
@@ -166,8 +169,8 @@ impl VideoStreamMetadata {
     }
 
     /// Compute frame rate from the stream rate
-    pub fn frame_rate(&self) -> f64 {
-        self.rate.to_f64().unwrap()
+    pub fn frame_rate(&self) -> Option<f64> {
+        self.rate.and_then(|r| r.to_f64())
     }
 
     /// Get the actual duration, using metadata fallback if duration is 0
@@ -216,7 +219,8 @@ pub struct AudioStreamMetadata {
     pub frames: i64,
     pub disposition: Disposition,
     pub discard: Discard,
-    pub rate: Rational,
+    /// Base stream rate, if could be reliably determined
+    pub rate: Option<Rational>,
     pub codec_id: CodecId,
     pub audio: AudioMetadata,
     pub metadata: HashMap<String, String>,
@@ -388,6 +392,7 @@ pub struct VideoFileMetadata {
 impl VideoFileMetadata {
     /// From file path
     pub fn from_path(file_path: &Path) -> Result<Self, MetadataError> {
+        trace!("Opening file for metadata extraction: {:?}", file_path);
         let context = ffmpeg::format::input(file_path)?;
 
         // Collect file-level metadata
@@ -415,12 +420,14 @@ impl VideoFileMetadata {
         let duration = context.duration();
 
         // Process all streams
+        trace!("Processing streams for file: {:?}", file_path);
         let mut streams: Vec<StreamMetadata> = vec![];
         for (i, stream) in context.streams().enumerate() {
             let codec =
                 ffmpeg::codec::context::Context::from_parameters(stream.parameters()).unwrap();
             let medium = codec.medium();
             let codec_id = codec.id();
+            trace!(medium = ?medium, codec_id = ?codec_id, "Processing stream index {i}");
 
             let metadata: HashMap<String, String> = stream
                 .metadata()
@@ -428,8 +435,10 @@ impl VideoFileMetadata {
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect();
 
-            let stream_metadata: Option<Result<StreamMetadata, MetadataError>> = match medium {
-                ffmpeg::media::Type::Video => codec.decoder().video().ok().map(|video_decoder| {
+            let stream_metadata: Option<StreamMetadata> = match medium {
+                ffmpeg::media::Type::Video => {
+                    trace!("Processing video stream index {}", stream.index());
+                    let video_decoder = codec.decoder().video()?;
                     let codec_name = format!("{:?}", codec_id);
                     let profile = format!("{:?}", video_decoder.profile());
                     let level = "Unknown".to_string(); // Level not directly available in ffmpeg-next
@@ -481,22 +490,38 @@ impl VideoFileMetadata {
                         frames: stream.frames(),
                         disposition: stream.disposition().into(),
                         discard: stream.discard().into(),
-                        rate: into_rational(stream.rate()).map_err(|(n, d)| {
-                            MetadataError::InvalidMetadata(format!(
-                                "Invalid rate {}/{} in stream {}",
-                                n,
-                                d,
-                                stream.index()
-                            ))
-                        })?,
+                        rate: match into_rational(stream.rate()) {
+                            Ok(r) => Ok(Some(r)),
+                            Err((n, d)) => {
+                                trace!(
+                                    "Was unable to convert rate for stream {}: {}/{}",
+                                    stream.index(),
+                                    n,
+                                    d
+                                );
+                                if n == 0 && d == 0 {
+                                    Ok(None)
+                                } else {
+                                    Err(MetadataError::InvalidMetadata(format!(
+                                        "Invalid rate {}/{} in stream {}",
+                                        n,
+                                        d,
+                                        stream.index()
+                                    )))
+                                }
+                            }
+                        }?,
                         codec_id: codec_id.into(),
                         video,
                         metadata,
                     });
 
-                    Ok(stream_metadata)
-                }),
-                ffmpeg::media::Type::Audio => codec.decoder().audio().ok().map(|audio_decoder| {
+                    Ok::<Option<_>, MetadataError>(Some(stream_metadata))
+                }
+                ffmpeg::media::Type::Audio => {
+                    trace!("Processing audio stream index {}", stream.index());
+                    let audio_decoder = codec.decoder().audio()?;
+
                     let codec_name = format!("{:?}", codec_id);
                     let profile = format!("{:?}", audio_decoder.profile());
 
@@ -542,23 +567,37 @@ impl VideoFileMetadata {
                         frames: stream.frames(),
                         disposition: stream.disposition().into(),
                         discard: stream.discard().into(),
-                        rate: into_rational(stream.rate()).map_err(|(n, d)| {
-                            MetadataError::InvalidMetadata(format!(
-                                "Invalid rate {}/{} in stream {}",
-                                n,
-                                d,
-                                stream.index()
-                            ))
-                        })?,
+                        rate: match into_rational(stream.rate()) {
+                            Ok(r) => Ok(Some(r)),
+                            Err((n, d)) => {
+                                trace!(
+                                    "Was unable to convert rate for stream {}: {}/{}",
+                                    stream.index(),
+                                    n,
+                                    d
+                                );
+                                if n == 0 && d == 0 {
+                                    Ok(None)
+                                } else {
+                                    Err(MetadataError::InvalidMetadata(format!(
+                                        "Invalid rate {}/{} in stream {}",
+                                        n,
+                                        d,
+                                        stream.index()
+                                    )))
+                                }
+                            }
+                        }?,
                         codec_id: codec_id.into(),
                         audio,
                         metadata,
                     });
 
-                    Ok(stream_metadata)
-                }),
+                    Ok::<Option<_>, MetadataError>(Some(stream_metadata))
+                }
                 ffmpeg::media::Type::Subtitle => {
-                    Some(Ok(StreamMetadata::Subtitle(SubtitleStreamMetadata {
+                    trace!("Processing subtitle stream index {}", stream.index());
+                    Ok(Some(StreamMetadata::Subtitle(SubtitleStreamMetadata {
                         index: stream.index(),
                         time_base: into_rational(stream.time_base()).map_err(|(n, d)| {
                             MetadataError::InvalidMetadata(format!(
@@ -580,10 +619,9 @@ impl VideoFileMetadata {
                 | ffmpeg::media::Type::Attachment
                 | ffmpeg::media::Type::Unknown => {
                     // Skip other stream types
-                    None
+                    Ok(None)
                 }
-            };
-            let stream_metadata = stream_metadata.and_then(|res| res.ok());
+            }?;
 
             if let Some(stream_metadata) = stream_metadata {
                 let insertion_idx = streams.len();

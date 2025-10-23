@@ -4,6 +4,7 @@ use num::{
 };
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use tracing::trace;
 
 use crate::utils::{
     codec::{OutputAudioCodec, OutputSubtitleCodec, OutputVideoCodec},
@@ -16,6 +17,7 @@ use config::StreamConfiguration;
 
 pub mod config;
 pub mod hls;
+pub mod mp4;
 
 #[derive(Debug, Clone, Default)]
 pub struct StreamBuilder {
@@ -68,6 +70,7 @@ impl StreamBuilder {
 
         // Generate stream configuration
         for (i, (file_type, file_path)) in self.files.into_iter().enumerate() {
+            trace!("Processing file: {:?}", &file_path);
             // Ensure path exists
             if !file_path.exists() || !file_path.is_file() {
                 return Err(StreamBuilderError::FileNotFound(file_path.clone()));
@@ -82,15 +85,23 @@ impl StreamBuilder {
             // Spawn concurrent tasks: metadata extraction and file hashing
             // Both will hold the shared lock until they complete
             let hash_path = file_path.clone();
-            let hash_task =
-                tokio::spawn(async move { crate::services::hash::hash_file(&hash_path).await });
+
+            let hash_task = tokio::spawn(async move {
+                trace!("Hashing file: {:?}", &hash_path);
+                crate::services::hash::hash_file(&hash_path).await
+            });
 
             // Process metadata extraction in current task
             let metadata_result = async {
                 match file_type {
                     FileType::Video => {
+                        trace!("Extracting video metadata: {:?}", &file_path);
                         // Process video file
                         let file_metadata = VideoFileMetadata::from_path(&file_path)?;
+                        trace!(
+                            "Extracted video metadata for file {:?}: {:#?}",
+                            &file_path, &file_metadata
+                        );
                         // let best_video_stream_idx = file_metadata.best_video_stream; // TODO: Find use for this value
                         let best_audio_stream_idx = file_metadata.best_audio_stream;
                         let best_subtitle_stream_idx = file_metadata.best_subtitle_stream;
@@ -110,7 +121,9 @@ impl StreamBuilder {
                                         max_rate: stream_metadata.video.max_rate,
                                         bit_rate: stream_metadata.video.bit_rate,
                                         resolution: stream_metadata.video.resolution(),
-                                        frame_rate: stream_metadata.rate,
+                                        frame_rate: stream_metadata
+                                            .rate
+                                            .unwrap_or(Rational32::new(0, 1)), // TODO: handle this properly
                                     };
 
                                     local_streams.push(OutputStream::Video(stream));
@@ -174,18 +187,25 @@ impl StreamBuilder {
                         Ok::<Vec<OutputStream>, StreamBuilderError>(local_streams)
                     }
                     FileType::Subtitle => {
+                        trace!("Processing subtitle file: {:?}", &file_path);
                         // Process subtitle file
+                        // TODO: Finish this
                         Ok(Vec::new())
                     }
                 }
             }
             .await?;
+            trace!(
+                "Extracted metadata for file {:?}: {:#?}",
+                &file_path, &metadata_result
+            );
 
             // Wait for hash computation to complete
             let hash_value = hash_task
                 .await
                 .map_err(StreamBuilderError::HashTaskError)?
                 .map_err(|e| StreamBuilderError::HashError(file_path.clone(), e))?;
+            trace!("Computed hash for file {:?}: {}", &file_path, &hash_value);
 
             // Release the shared lock now that both tasks are complete
             fs2::FileExt::unlock(&file)

@@ -1,10 +1,10 @@
-use log::debug;
 use m3u8_rs::{
     AlternativeMedia, AlternativeMediaType, MasterPlaylist, MediaPlaylist, MediaPlaylistType,
     VariantStream,
 };
 use num::ToPrimitive;
 use std::collections::HashMap;
+use tracing::debug;
 
 use crate::utils::stream::config::{OutputStream, SubtitleStream};
 
@@ -14,6 +14,7 @@ const HLS_VERSION: usize = 6; // HLS 6 is a good minimum for fMP4, CMAF, low-lat
 
 // TODO: There are still inaccuracies with the generated playlists
 
+/// Generates compliant HLS playlists and segments from a stream configuration
 pub struct HlsStreamGenerator {
     configuration: StreamConfiguration,
 }

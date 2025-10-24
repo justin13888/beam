@@ -16,8 +16,6 @@ pub struct ShowMetadata {
     pub year: Option<u32>,
     /// List of seasons in the show
     pub seasons: Vec<SeasonMetadata>,
-    /// External identifiers to show
-    pub identifiers: Option<ExternalIdentifiers>,
 }
 
 #[derive(Clone, Debug, Serialize, ToSchema, SimpleObject)]
@@ -38,6 +36,8 @@ pub struct SeasonMetadata {
     pub genres: Vec<String>, // TODO: Replace String with specific enum
     /// Show ratings
     pub ratings: Option<Ratings>,
+    /// External identifiers to show
+    pub identifiers: Option<ExternalIdentifiers>,
     // Add people involved (cast, crew, directors, writers, etc.)
 }
 

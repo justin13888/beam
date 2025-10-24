@@ -27,8 +27,8 @@ impl MediaQuery {
                 poster_url: None,
                 genres: vec![],
                 ratings: None,
+                identifiers: None,
             }],
-            identifiers: None,
         });
 
         Ok(Some(media_metadata))

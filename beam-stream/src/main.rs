@@ -15,7 +15,7 @@ use axum::{
 use eyre::{Result, eyre};
 use listenfd::ListenFd;
 use tokio::net::TcpListener;
-use tower_http::cors::{AllowOrigin, CorsLayer};
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tracing::info;
 use utoipa_scalar::{Scalar, Servable};
 
@@ -63,15 +63,18 @@ async fn main() -> Result<()> {
         config: Arc::new(config.clone()),
     };
     let schema = create_schema(app_state.into());
-    let graphql_router = Router::new()
-        .route("/graphql", get(graphiql).post_service(GraphQL::new(schema)))
+    let graphql_router =
+        Router::new().route("/graphql", get(graphiql).post_service(GraphQL::new(schema)));
+
+    let app = router
+        .merge(graphql_router)
         .layer(
             CorsLayer::new()
-                .allow_origin(AllowOrigin::predicate(|_, _| true))
-                .allow_methods([Method::GET, Method::POST]),
-        );
-
-    let app = router.merge(graphql_router).into_make_service();
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any), // TODO: Restrict headers as necessary
+        )
+        .into_make_service();
 
     info!("Binding to address: {}", config.bind_address);
     let mut listenfd = ListenFd::from_env();

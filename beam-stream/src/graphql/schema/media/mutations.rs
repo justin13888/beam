@@ -6,6 +6,6 @@ pub struct MediaMutation;
 impl MediaMutation {
     /// Refresh media metadata by ID
     async fn refresh_metadata(&self, _ctx: &Context<'_>, id: ID) -> Result<bool> {
-        unimplemented!() // TODO
+        todo!()
     }
 }

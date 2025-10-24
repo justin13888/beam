@@ -3,57 +3,11 @@ use std::path::PathBuf;
 use axum::body::Body;
 use axum::extract::Path;
 use axum::http::HeaderMap;
+use axum::http::StatusCode;
 use axum::response::Response;
-use axum::{Json, http::StatusCode};
 use beam_stream::utils::cache::generate_mp4_cache;
 use tokio::fs::File;
 use tracing::{debug, error, trace};
-
-use crate::models::{MediaMetadata, SeasonMetadata, ShowDates, ShowMetadata, Title};
-
-/// Get media metadata by ID
-#[utoipa::path(
-    get,
-    path = "/media/{id}/metadata",
-    params(
-        ("id" = String, Path, description = "Media ID")
-    ),
-    responses(
-        (status = 200, description = "Media information retrieved", body = MediaMetadata),
-        (status = 404, description = "Media not found", body = super::ErrorResponse),
-        (status = 500, description = "Internal server error", body = super::ErrorResponse)
-    ),
-    tag = "media"
-)]
-#[tracing::instrument]
-pub async fn get_media_metadata(Path(id): Path<String>) -> Result<Json<MediaMetadata>, StatusCode> {
-    debug!("Getting media metadata for ID: {}", id);
-
-    let media_metadata = MediaMetadata::Show(ShowMetadata {
-        title: Title {
-            original: String::from("Unknown Title"),
-            localized: None,
-            alternatives: None,
-        },
-        description: None,
-        year: None,
-        seasons: vec![SeasonMetadata {
-            season_number: 1,
-            dates: ShowDates {
-                first_aired: None,
-                last_aired: None,
-            },
-            episode_runtime: None,
-            episodes: vec![],
-            poster_url: None,
-            genres: vec![],
-            ratings: None,
-        }],
-        identifiers: None,
-    });
-
-    Ok(Json(media_metadata))
-}
 
 /// Stream media by ID - serves AVFoundation-friendly fragmented MP4
 #[utoipa::path(

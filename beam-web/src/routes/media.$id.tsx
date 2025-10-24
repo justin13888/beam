@@ -2,6 +2,7 @@ import type { ApolloClient } from "@apollo/client";
 import { gql, type TypedDocumentNode } from "@apollo/client";
 import { queryOptions } from "@tanstack/react-query";
 import { createFileRoute, ErrorComponent } from "@tanstack/react-router";
+import { env } from "@/env";
 import type {
 	GetMediaMetadataByIdQuery,
 	GetMediaMetadataByIdQueryVariables,
@@ -83,7 +84,10 @@ const mediaQueryOptions = (mediaId: string, apolloClient: ApolloClient) =>
 	});
 
 export const Route = createFileRoute("/media/$id")({
-	loader: ({ context: { queryClient, apolloClient }, params: { id } }) => {
+	loader: async ({
+		context: { queryClient, apolloClient },
+		params: { id },
+	}) => {
 		return queryClient.ensureQueryData(mediaQueryOptions(id, apolloClient));
 	},
 	errorComponent: ({ error }) => <ErrorComponent error={error} />,
@@ -91,16 +95,27 @@ export const Route = createFileRoute("/media/$id")({
 });
 
 function RouteComponent() {
+	const { id } = Route.useParams();
 	const data = Route.useLoaderData();
 
+	if (!data) {
+		return <div>No data...</div>;
+	}
+
+	const streamLink = `${env.C_STREAM_SERVER_URL}/media/${id}/stream`;
 	return (
 		<div className="container mx-auto p-4">
 			<h1 className="text-2xl font-bold mb-4">
-				{data?.media.metadata?.title.original}
+				{data.media.metadata?.title.original}
 			</h1>
-			<p className="mb-4">{data?.media.metadata?.description}</p>
-			{/* Video Player */}
-			{/* TODO */}
+			<p className="mb-4">{data.media.metadata?.description}</p>
+			{/* Watch Link */}
+			<a
+				href={streamLink}
+				className="text-blue-600 hover:text-blue-800 underline"
+			>
+				{streamLink}
+			</a>
 			{/* Render additional metadata as needed */}
 			<h2 className="text-xl font-semibold mb-2">Full Data:</h2>
 			<pre>{JSON.stringify(data, null, 2)}</pre>

@@ -17,6 +17,16 @@ import reportWebVitals from "./reportWebVitals.ts";
 const client = new ApolloClient({
 	link: new HttpLink({ uri: env.C_STREAM_SERVER_URL }),
 	cache: new InMemoryCache(),
+	defaultOptions: {
+		watchQuery: {
+			fetchPolicy: "cache-and-network",
+			errorPolicy: "none",
+		},
+		query: {
+			fetchPolicy: "network-only",
+			errorPolicy: "none",
+		},
+	},
 });
 
 // Create a new router instance

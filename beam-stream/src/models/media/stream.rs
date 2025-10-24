@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
+use crate::utils::stream::config::StreamConfiguration;
 use async_graphql::SimpleObject;
-use beam_stream::utils::stream::config::StreamConfiguration;
-use num::rational::Ratio;
 use rust_decimal::Decimal;
 use serde::Serialize;
 use utoipa::ToSchema;
 
-use crate::models::{OutputAudioCodec, OutputSubtitleCodec, OutputVideoCodec, Resolution};
+use super::{OutputAudioCodec, OutputSubtitleCodec, OutputVideoCodec, Resolution};
 
 #[derive(Clone, Debug, Serialize, ToSchema, SimpleObject)]
 pub struct MediaStreamMetadata {

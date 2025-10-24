@@ -8,8 +8,8 @@ pub struct Resolution {
     pub height: u32,
 }
 
-impl From<&beam_stream::utils::format::Resolution> for Resolution {
-    fn from(res: &beam_stream::utils::format::Resolution) -> Self {
+impl From<&crate::utils::format::Resolution> for Resolution {
+    fn from(res: &crate::utils::format::Resolution) -> Self {
         Self {
             width: res.width,
             height: res.height,

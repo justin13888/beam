@@ -10,10 +10,10 @@ pub enum OutputVideoCodec {
     UNKNOWN,
 }
 
-impl From<&beam_stream::utils::codec::OutputVideoCodec> for OutputVideoCodec {
-    fn from(codec: &beam_stream::utils::codec::OutputVideoCodec) -> Self {
+impl From<&crate::utils::codec::OutputVideoCodec> for OutputVideoCodec {
+    fn from(codec: &crate::utils::codec::OutputVideoCodec) -> Self {
         match codec {
-            beam_stream::utils::codec::OutputVideoCodec::Remuxed(c) => {
+            crate::utils::codec::OutputVideoCodec::Remuxed(c) => {
                 match c.to_ascii_lowercase().as_str() {
                     "h264" => OutputVideoCodec::H264,
                     "h265" => OutputVideoCodec::H265,
@@ -21,9 +21,9 @@ impl From<&beam_stream::utils::codec::OutputVideoCodec> for OutputVideoCodec {
                     _ => OutputVideoCodec::UNKNOWN,
                 }
             }
-            beam_stream::utils::codec::OutputVideoCodec::H264 => OutputVideoCodec::H264,
-            beam_stream::utils::codec::OutputVideoCodec::H265 => OutputVideoCodec::H265,
-            beam_stream::utils::codec::OutputVideoCodec::AV1 => OutputVideoCodec::AV1,
+            crate::utils::codec::OutputVideoCodec::H264 => OutputVideoCodec::H264,
+            crate::utils::codec::OutputVideoCodec::H265 => OutputVideoCodec::H265,
+            crate::utils::codec::OutputVideoCodec::AV1 => OutputVideoCodec::AV1,
         }
     }
 }
@@ -35,18 +35,18 @@ pub enum OutputAudioCodec {
     Unknown,
 }
 
-impl From<&beam_stream::utils::codec::OutputAudioCodec> for OutputAudioCodec {
-    fn from(codec: &beam_stream::utils::codec::OutputAudioCodec) -> Self {
+impl From<&crate::utils::codec::OutputAudioCodec> for OutputAudioCodec {
+    fn from(codec: &crate::utils::codec::OutputAudioCodec) -> Self {
         match codec {
-            beam_stream::utils::codec::OutputAudioCodec::Remuxed(c) => {
+            crate::utils::codec::OutputAudioCodec::Remuxed(c) => {
                 match c.to_ascii_lowercase().as_str() {
                     "aac" => OutputAudioCodec::Aac,
                     "opus" => OutputAudioCodec::Opus,
                     _ => OutputAudioCodec::Unknown,
                 }
             }
-            beam_stream::utils::codec::OutputAudioCodec::AacLc => OutputAudioCodec::Aac,
-            beam_stream::utils::codec::OutputAudioCodec::Opus => OutputAudioCodec::Opus,
+            crate::utils::codec::OutputAudioCodec::AacLc => OutputAudioCodec::Aac,
+            crate::utils::codec::OutputAudioCodec::Opus => OutputAudioCodec::Opus,
         }
     }
 }
@@ -56,10 +56,10 @@ pub enum OutputSubtitleCodec {
     WebVTT,
 }
 
-impl From<&beam_stream::utils::codec::OutputSubtitleCodec> for OutputSubtitleCodec {
-    fn from(codec: &beam_stream::utils::codec::OutputSubtitleCodec) -> Self {
+impl From<&crate::utils::codec::OutputSubtitleCodec> for OutputSubtitleCodec {
+    fn from(codec: &crate::utils::codec::OutputSubtitleCodec) -> Self {
         match codec {
-            beam_stream::utils::codec::OutputSubtitleCodec::WebVTT => OutputSubtitleCodec::WebVTT,
+            crate::utils::codec::OutputSubtitleCodec::WebVTT => OutputSubtitleCodec::WebVTT,
         }
     }
 }

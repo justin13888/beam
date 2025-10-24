@@ -10,7 +10,7 @@ use health::*;
 use stream::*;
 // use upload::*;
 
-use crate::models::*;
+use beam_stream::models::*;
 
 /// Main API documentation structure
 #[derive(OpenApi)]

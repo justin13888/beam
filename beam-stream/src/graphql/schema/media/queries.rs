@@ -1,6 +1,8 @@
 use async_graphql::*;
 
-use crate::models::{MediaMetadata, MovieMetadata, SeasonMetadata, ShowDates, ShowMetadata, Title};
+use beam_stream::models::{
+    MediaMetadata, MovieMetadata, SeasonMetadata, ShowDates, ShowMetadata, Title,
+};
 
 pub struct MediaQuery;
 
@@ -31,24 +33,24 @@ impl MediaQuery {
         //     }],
         // });
 
-        // let media_metadata = MediaMetadata::Movie(MovieMetadata {
-        //     title: Title {
-        //         original: String::from("Unknown Movie"),
-        //         localized: None,
-        //         alternatives: None,
-        //     },
-        //     description: None,
-        //     year: None,
-        //     runtime: None,
-        //     poster_url: None,
-        //     genres: vec![],
-        //     ratings: None,
-        //     identifiers: None,
-        //     release_date: None,
-        //     duration: None,
-        //     backdrop_url: None,
-        //     streams: vec![],
-        // });
+        let media_metadata = MediaMetadata::Movie(MovieMetadata {
+            title: Title {
+                original: String::from("Unknown Movie"),
+                localized: None,
+                alternatives: None,
+            },
+            description: None,
+            year: None,
+            runtime: None,
+            poster_url: None,
+            genres: vec![],
+            ratings: None,
+            identifiers: None,
+            release_date: None,
+            duration: None,
+            backdrop_url: None,
+            streams: vec![],
+        });
 
         Ok(Some(media_metadata))
     }

@@ -6,50 +6,56 @@
 //! CPU-bound hashing performance.
 
 use rayon::ThreadPool;
-use std::fs::File;
-use std::io::{self, BufReader, Read};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
-use xxhash_rust::xxh3::Xxh3;
+
+use crate::utils::hash::compute_hash;
+
+/// Global dedicated thread pool for hashing operations.
+///
+/// This thread pool is configured to use one thread per physical CPU core,
+/// ignoring SMT (simultaneous multithreading), which is optimal for CPU-bound
+/// hashing workloads.
+static THREAD_POOL: LazyLock<Arc<ThreadPool>> = LazyLock::new(|| {
+    let num_physical_cores = num_cpus::get_physical();
+
+    let thread_pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(num_physical_cores)
+        .thread_name(|idx| format!("hash-worker-{}", idx))
+        .build()
+        .expect("Failed to build hash service thread pool");
+
+    tracing::info!(
+        "Initialized hash thread pool with {} threads (physical cores)",
+        num_physical_cores
+    );
+
+    Arc::new(thread_pool)
+});
 
 /// Global hash service instance.
 ///
-/// This is initialized lazily on first use and manages a dedicated thread pool
-/// for CPU-bound hashing operations. The thread pool is configured to use one
-/// thread per physical CPU core, ignoring SMT (simultaneous multithreading).
-static HASH_SERVICE: LazyLock<HashService> = LazyLock::new(HashService::new);
+/// This is initialized lazily on first use and provides access to the hash service
+/// which manages file hashing operations using a dedicated thread pool.
+pub static HASH_SERVICE: LazyLock<Arc<HashService>> =
+    LazyLock::new(|| Arc::new(HashService::new()));
 
 /// A service that manages file hashing operations using a dedicated Rayon thread pool.
 ///
 /// This service is designed to keep the thread pool opaque and managed internally,
 /// providing a simple API for other parts of the program to use without worrying
 /// about thread pool configuration or management.
+#[derive(Debug)]
 pub struct HashService {
     thread_pool: Arc<ThreadPool>,
 }
 
 impl HashService {
-    /// Creates a new HashService with a dedicated thread pool.
-    ///
-    /// The thread pool is configured to use one thread per physical CPU core,
-    /// which is optimal for CPU-bound hashing workloads. SMT threads are ignored
-    /// to avoid contention.
+    /// Creates a new HashService that uses the global thread pool.
     fn new() -> Self {
-        let num_physical_cores = num_cpus::get_physical();
-
-        let thread_pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(num_physical_cores)
-            .thread_name(|idx| format!("hash-worker-{}", idx))
-            .build()
-            .expect("Failed to build hash service thread pool");
-
-        tracing::info!(
-            "Initialized HashService with {} threads (physical cores)",
-            num_physical_cores
-        );
-
         Self {
-            thread_pool: Arc::new(thread_pool),
+            thread_pool: THREAD_POOL.clone(),
         }
     }
 
@@ -57,7 +63,7 @@ impl HashService {
     ///
     /// This method runs the hashing operation on the service's dedicated thread pool,
     /// blocking the current thread until complete.
-    fn hash_sync(&self, path: &Path) -> io::Result<u64> {
+    pub fn hash_sync(&self, path: &Path) -> io::Result<u64> {
         let path = path.to_path_buf();
         let (tx, rx) = std::sync::mpsc::channel();
 
@@ -73,7 +79,7 @@ impl HashService {
     ///
     /// This method offloads the hashing operation to the service's dedicated thread pool,
     /// allowing the async runtime to continue processing other tasks.
-    async fn hash_async(&self, path: PathBuf) -> io::Result<u64> {
+    pub async fn hash_async(&self, path: PathBuf) -> io::Result<u64> {
         let thread_pool = self.thread_pool.clone();
 
         tokio::task::spawn_blocking(move || {
@@ -89,30 +95,6 @@ impl HashService {
         .await
         .map_err(io::Error::other)?
     }
-}
-
-/// Computes the hash of a file using XXH3 (64-bit).
-///
-/// This is the core hashing function that performs the actual I/O and computation.
-fn compute_hash(path: &Path) -> io::Result<u64> {
-    const BUFFER_SIZE: usize = 1024 * 1024; // 1 MB buffer
-
-    let file = File::open(path)?;
-    let mut reader = BufReader::with_capacity(BUFFER_SIZE, file);
-    let mut hasher = Xxh3::new();
-    let mut buffer = vec![0; BUFFER_SIZE];
-
-    loop {
-        match reader.read(&mut buffer) {
-            Ok(0) => break, // End of file
-            Ok(bytes_read) => {
-                hasher.update(&buffer[..bytes_read]);
-            }
-            Err(e) => return Err(e),
-        }
-    }
-
-    Ok(hasher.digest())
 }
 
 /// Computes the XXH3 64-bit hash of a file synchronously.

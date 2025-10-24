@@ -1,28 +1,27 @@
-mod graphql;
-mod models;
-mod routes;
-
-use std::sync::{Arc, atomic::Ordering};
+use std::sync::atomic::Ordering;
 
 use async_graphql::http::GraphiQLSource;
 use async_graphql_axum::GraphQL;
 use axum::{
     Router,
-    http::Method,
     response::{Html, IntoResponse},
     routing::get,
 };
 use eyre::{Result, eyre};
 use listenfd::ListenFd;
 use tokio::net::TcpListener;
-use tower_http::cors::{AllowOrigin, Any, CorsLayer};
+use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 use utoipa_scalar::{Scalar, Servable};
 
-use beam_stream::config::Config;
+use crate::config::Config;
 use routes::create_router;
 
 use crate::graphql::create_schema;
+
+pub mod config;
+mod graphql;
+mod routes;
 
 const GRAPHQL_PATH: &str = "/graphql";
 
@@ -59,10 +58,7 @@ async fn main() -> Result<()> {
     let (router, api) = create_router().split_for_parts();
     let router = router.merge(Scalar::with_url("/openapi", api));
 
-    let app_state = graphql::AppState {
-        config: Arc::new(config.clone()),
-    };
-    let schema = create_schema(app_state.into());
+    let schema = create_schema(&config);
     let graphql_router =
         Router::new().route("/graphql", get(graphiql).post_service(GraphQL::new(schema)));
 

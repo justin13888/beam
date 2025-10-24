@@ -1,0 +1,19 @@
+{
+  "projectName": "beam-web",
+  "mode": "file-router",
+  "typescript": true,
+  "tailwind": true,
+  "packageManager": "bun",
+  "addOnOptions": {},
+  "git": true,
+  "version": 1,
+  "framework": "react-cra",
+  "chosenAddOns": [
+    "biome",
+    "form",
+    "shadcn",
+    "t3env",
+    "table",
+    "tanstack-query"
+  ]
+}

@@ -1,5 +1,5 @@
 pub mod health;
-pub mod media;
+pub mod stream;
 pub mod upload;
 
 use utoipa::OpenApi;
@@ -7,7 +7,7 @@ use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
 use health::*;
-use media::*;
+use stream::*;
 // use upload::*;
 
 use crate::models::*;
@@ -23,7 +23,7 @@ use crate::models::*;
     paths(
         health_check,
         // upload_file,
-        stream_media
+        stream_mp4
     ),
     components(schemas(
         HealthStatus,
@@ -41,7 +41,7 @@ use crate::models::*;
     tags(
         (name = "health", description = "Health check endpoints"),
         // (name = "upload", description = "File upload operations"), 
-        (name = "media", description = "Media streaming and information")
+        (name = "stream", description = "Streaming endpoints")
     )
 )]
 pub struct ApiDoc;
@@ -51,5 +51,5 @@ pub fn create_router() -> OpenApiRouter {
     OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(health_check))
         // .routes(routes!(upload_file))
-        .routes(routes!(stream_media))
+        .routes(routes!(stream_mp4))
 }

@@ -9,12 +9,12 @@ use beam_stream::utils::cache::generate_mp4_cache;
 use tokio::fs::File;
 use tracing::{debug, error, trace};
 
-/// Stream media by ID - serves AVFoundation-friendly fragmented MP4
+/// Stream via MP4 - serves AVFoundation-friendly fragmented MP4
 #[utoipa::path(
     get,
-    path = "/media/{id}/stream",
+    path = "/stream/mp4/{id}",
     params(
-        ("id" = String, Path, description = "Media ID")
+        ("id" = String, Path, description = "Stream ID")
     ),
     responses(
         (status = 200, description = "Media stream", content_type = "video/mp4"),
@@ -25,7 +25,7 @@ use tracing::{debug, error, trace};
     tag = "media"
 )]
 #[tracing::instrument]
-pub async fn stream_media(
+pub async fn stream_mp4(
     Path(id): Path<String>,
     headers: HeaderMap,
 ) -> Result<Response, StatusCode> {

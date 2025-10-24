@@ -1,6 +1,7 @@
+import type { ApolloClient } from "@apollo/client";
 import { gql, type TypedDocumentNode } from "@apollo/client";
-import { useQuery } from "@apollo/client/react";
-import { createFileRoute } from "@tanstack/react-router";
+import { queryOptions } from "@tanstack/react-query";
+import { createFileRoute, ErrorComponent } from "@tanstack/react-router";
 import type {
 	GetMediaMetadataByIdQuery,
 	GetMediaMetadataByIdQueryVariables,
@@ -69,21 +70,39 @@ const GET_METADATA_BY_ID: TypedDocumentNode<
 	}
 `;
 
+const mediaQueryOptions = (mediaId: string, apolloClient: ApolloClient) =>
+	queryOptions({
+		queryKey: ["media", mediaId],
+		queryFn: async () => {
+			const result = await apolloClient.query({
+				query: GET_METADATA_BY_ID,
+				variables: { mediaId },
+			});
+			return result.data;
+		},
+	});
+
 export const Route = createFileRoute("/media/$id")({
+	loader: ({ context: { queryClient, apolloClient }, params: { id } }) => {
+		return queryClient.ensureQueryData(mediaQueryOptions(id, apolloClient));
+	},
+	errorComponent: ({ error }) => <ErrorComponent error={error} />,
 	component: RouteComponent,
 });
 
 function RouteComponent() {
-	const { id } = Route.useParams();
-	const { loading, error, data } = useQuery(GET_METADATA_BY_ID, {
-		variables: { mediaId: id },
-	});
-
-	if (loading) return <p>Loading...</p>;
-	if (error) return <p>Error : {error.message}</p>;
+	const data = Route.useLoaderData();
 
 	return (
-		<div>
+		<div className="container mx-auto p-4">
+			<h1 className="text-2xl font-bold mb-4">
+				{data?.media.metadata?.title.original}
+			</h1>
+			<p className="mb-4">{data?.media.metadata?.description}</p>
+			{/* Video Player */}
+			{/* TODO */}
+			{/* Render additional metadata as needed */}
+			<h2 className="text-xl font-semibold mb-2">Full Data:</h2>
 			<pre>{JSON.stringify(data, null, 2)}</pre>
 		</div>
 	);

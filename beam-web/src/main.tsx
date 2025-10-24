@@ -14,12 +14,18 @@ import { ApolloClient, HttpLink, InMemoryCache } from "@apollo/client";
 import { ApolloProvider } from "@apollo/client/react";
 import reportWebVitals from "./reportWebVitals.ts";
 
+const client = new ApolloClient({
+	link: new HttpLink({ uri: env.C_STREAM_SERVER_URL }),
+	cache: new InMemoryCache(),
+});
+
 // Create a new router instance
 const TanStackQueryProviderContext = TanStackQueryProvider.getContext();
 const router = createRouter({
 	routeTree,
 	context: {
 		...TanStackQueryProviderContext,
+		apolloClient: client,
 	},
 	defaultPreload: "intent",
 	scrollRestoration: true,
@@ -33,11 +39,6 @@ declare module "@tanstack/react-router" {
 		router: typeof router;
 	}
 }
-
-const client = new ApolloClient({
-	link: new HttpLink({ uri: env.C_STREAM_SERVER_URL }),
-	cache: new InMemoryCache(),
-});
 
 // Render the app
 const rootElement = document.getElementById("app");

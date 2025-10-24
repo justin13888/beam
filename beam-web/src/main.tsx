@@ -15,7 +15,7 @@ import { ApolloProvider } from "@apollo/client/react";
 import reportWebVitals from "./reportWebVitals.ts";
 
 const client = new ApolloClient({
-	link: new HttpLink({ uri: env.C_STREAM_SERVER_URL }),
+	link: new HttpLink({ uri: `${env.C_STREAM_SERVER_URL}/graphql` }),
 	cache: new InMemoryCache(),
 	defaultOptions: {
 		watchQuery: {

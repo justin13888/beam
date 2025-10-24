@@ -66,9 +66,6 @@ pub struct EpisodeMetadata {
 
     pub duration: Option<f64>,
 
-    /// Available video qualities (e.g., 480p, 720p, 1080p)
-    pub available_qualities: Vec<String>, // TODO: Replace String with specific enum
-
     /// List of unique streams associated with this episode
     pub streams: Vec<MediaStreamMetadata>,
 }

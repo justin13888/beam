@@ -30,8 +30,6 @@ pub struct MovieMetadata {
     pub ratings: Option<Ratings>,
     /// External identifiers to movie
     pub identifiers: Option<ExternalIdentifiers>,
-    /// Available video qualities (e.g., 480p, 720p, 1080p)
-    pub available_qualities: Vec<String>, // TODO: Replace String with specific enum
 
     /// List of unique streams associated with this movie
     pub streams: Vec<MediaStreamMetadata>,

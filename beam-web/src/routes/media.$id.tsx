@@ -31,6 +31,42 @@ const GET_METADATA_BY_ID: TypedDocumentNode<
 						lastAired
 					}
 					episodeRuntime
+					episodes {
+						episodeNumber
+						title
+						description
+						airDate
+						thumbnailUrl
+						duration
+						streams {
+							videoTracks {
+								codec
+								maxRate
+								bitRate
+								resolution {
+									width
+									height
+								}
+								frameRate
+							}
+							audioTracks {
+								codec
+								language
+								title
+								channelLayout
+								isDefault
+								isAutoselect
+							}
+							subtitleTracks {
+								codec
+								language
+								title
+								isDefault
+								isAutoselect
+								isForced
+							}
+						}
+					}
 					posterUrl
 					genres
 					ratings {
@@ -45,9 +81,9 @@ const GET_METADATA_BY_ID: TypedDocumentNode<
 			}
 			... on MovieMetadata {
 				title {
-				original
-				localized
-				alternatives
+					original
+					localized
+					alternatives
 				}
 				description
 				year
@@ -58,12 +94,40 @@ const GET_METADATA_BY_ID: TypedDocumentNode<
 				backdropUrl
 				genres
 				ratings {
-				tmdb
+					tmdb
 				}
 				identifiers {
-				imdbId
-				tmdbId
-				tvdbId
+					imdbId
+					tmdbId
+					tvdbId
+				}
+				streams {
+					videoTracks {
+						codec
+						maxRate
+						bitRate
+						resolution {
+						width
+						height
+						}
+						frameRate
+					}
+					audioTracks {
+						codec
+						language
+						title
+						channelLayout
+						isDefault
+						isAutoselect
+					}
+					subtitleTracks {
+						codec
+						language
+						title
+						isDefault
+						isAutoselect
+						isForced
+					}
 				}
 			}
 			}
@@ -102,7 +166,8 @@ function RouteComponent() {
 		return <div>No data...</div>;
 	}
 
-	const streamLink = `${env.C_STREAM_SERVER_URL}/media/${id}/stream`;
+	const streamLink = `${env.C_STREAM_SERVER_URL}/stream/mp4/${id}`;
+	// TODO: Detect appropriate stream type later (MP4, HLS, DASH) depending on client capabilities in the future.
 	return (
 		<div className="container mx-auto p-4">
 			<h1 className="text-2xl font-bold mb-4">

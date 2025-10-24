@@ -1,3 +1,5 @@
+use crate::models::MediaStreamMetadata;
+
 use super::{ExternalIdentifiers, Ratings, Title};
 use async_graphql::SimpleObject;
 use chrono::{DateTime, Utc};
@@ -30,5 +32,9 @@ pub struct MovieMetadata {
     pub identifiers: Option<ExternalIdentifiers>,
     /// Available video qualities (e.g., 480p, 720p, 1080p)
     pub available_qualities: Vec<String>, // TODO: Replace String with specific enum
-                                          // Add people involved (cast, crew, directors, writers, etc.)
+
+    /// List of unique streams associated with this movie
+    pub streams: Vec<MediaStreamMetadata>,
+    //
+    // TODO: Add people involved (cast, crew, directors, writers, etc.)
 }

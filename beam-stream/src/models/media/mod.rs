@@ -2,11 +2,17 @@ use async_graphql::{SimpleObject, Union};
 use serde::Serialize;
 use utoipa::ToSchema;
 
+mod codec;
+mod format;
 mod movie;
 mod show;
+mod stream;
 
+pub use codec::*;
+pub use format::*;
 pub use movie::*;
 pub use show::*;
+pub use stream::*;
 
 /// Media metadata
 #[derive(Clone, Debug, Serialize, ToSchema, Union)]

@@ -25,16 +25,16 @@ impl Resolution {
 }
 
 impl std::fmt::Debug for Resolution {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}x{}", self.width, self.height)
     }
 }
 
-impl Into<m3u8_rs::Resolution> for Resolution {
-    fn into(self) -> m3u8_rs::Resolution {
+impl From<Resolution> for m3u8_rs::Resolution {
+    fn from(val: Resolution) -> Self {
         m3u8_rs::Resolution {
-            width: self.width as u64,
-            height: self.height as u64,
+            width: val.width as u64,
+            height: val.height as u64,
         }
     }
 }

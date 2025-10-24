@@ -10,6 +10,7 @@ async-graphql = { version = "7.0.17", features = [
     "apollo_persisted_queries",
     "chrono",
     "dataloader",
+    "decimal",
     "log",
     "opentelemetry",
     "secrecy",
@@ -33,6 +34,7 @@ num = { version = "0.4.3", features = ["serde"] }
 num_cpus = "1.17.0"
 parking_lot = "0.12.5"
 rayon = "1.11.0"
+rust_decimal = "1.39.0"
 serde = { workspace = true, features = ["derive"] }
 tempfile = "3.23.0"
 thiserror = { workspace = true }
@@ -43,12 +45,14 @@ tracing-subscriber = { workspace = true, features = ["json", "env-filter"] }
 utoipa = { version = "5.4.0", features = [
     "axum_extras",
     "chrono",
+    "decimal",
     "url",
     "uuid",
 ] }
 utoipa-axum = "0.2.0"
 utoipa-scalar = { version = "0.3.0", features = ["axum"] }
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
+uuid = { version = "1.18.1", features = ["v4"] }
 xxhash-rust = { version = "0.8.15", features = ["xxh3"] }
 
 [dev-dependencies]

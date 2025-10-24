@@ -9,7 +9,7 @@ export default defineConfig({
 		platformProxy: {
 			enabled: true
 		},
-		imageService: "cloudflare",
+		imageService: "compile",
 	}),
 	site: 'https://beam.justinchung.net',
 	integrations: [

@@ -1,16 +1,30 @@
+mod graphql;
 mod models;
 mod routes;
 
-use std::sync::atomic::Ordering;
+use std::sync::{Arc, atomic::Ordering};
 
+use async_graphql::http::GraphiQLSource;
+use async_graphql_axum::GraphQL;
+use axum::{
+    Router,
+    http::Method,
+    response::{Html, IntoResponse},
+    routing::get,
+};
 use eyre::{Result, eyre};
 use listenfd::ListenFd;
 use tokio::net::TcpListener;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::info;
 use utoipa_scalar::{Scalar, Servable};
 
 use beam_stream::config::Config;
 use routes::create_router;
+
+use crate::graphql::create_schema;
+
+const GRAPHQL_PATH: &str = "/graphql";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -29,10 +43,10 @@ async fn main() -> Result<()> {
     info!("Configuration loaded: {:?}", config);
 
     // Ensure video and cache directories exist
-    tokio::fs::create_dir_all(config.video_dir)
+    tokio::fs::create_dir_all(&config.video_dir)
         .await
         .expect("Failed to create video directory");
-    tokio::fs::create_dir_all(config.cache_dir)
+    tokio::fs::create_dir_all(&config.cache_dir)
         .await
         .expect("Failed to create cache directory");
 
@@ -45,7 +59,19 @@ async fn main() -> Result<()> {
     let (router, api) = create_router().split_for_parts();
     let router = router.merge(Scalar::with_url("/openapi", api));
 
-    let app = router.into_make_service();
+    let app_state = graphql::AppState {
+        config: Arc::new(config.clone()),
+    };
+    let schema = create_schema(app_state.into());
+    let graphql_router = Router::new()
+        .route("/graphql", get(graphiql).post_service(GraphQL::new(schema)))
+        .layer(
+            CorsLayer::new()
+                .allow_origin(AllowOrigin::predicate(|_, _| true))
+                .allow_methods([Method::GET, Method::POST]),
+        );
+
+    let app = router.merge(graphql_router).into_make_service();
 
     info!("Binding to address: {}", config.bind_address);
     let mut listenfd = ListenFd::from_env();
@@ -62,10 +88,15 @@ async fn main() -> Result<()> {
 
     info!("Server listening on http://{local_addr}");
     info!("API documentation available at http://{local_addr}/openapi",);
+    info!("GraphiQL interface available at http://{local_addr}/{GRAPHQL_PATH}",);
 
     axum::serve(listener, app)
         .await
         .map_err(|e| eyre!("Server error: {}", e))?;
 
     Ok(())
+}
+
+async fn graphiql() -> impl IntoResponse {
+    Html(GraphiQLSource::build().endpoint(GRAPHQL_PATH).finish())
 }

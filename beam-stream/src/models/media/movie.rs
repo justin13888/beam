@@ -1,9 +1,10 @@
 use super::{ExternalIdentifiers, Ratings, Title};
+use async_graphql::SimpleObject;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use utoipa::ToSchema;
 
-#[derive(Serialize, ToSchema)]
+#[derive(Clone, Debug, Serialize, ToSchema, SimpleObject)]
 pub struct MovieMetadata {
     /// Title of the movie
     pub title: Title,

@@ -1,3 +1,4 @@
+use async_graphql::{SimpleObject, Union};
 use serde::Serialize;
 use utoipa::ToSchema;
 
@@ -8,13 +9,13 @@ pub use movie::*;
 pub use show::*;
 
 /// Media metadata
-#[derive(Serialize, ToSchema)]
+#[derive(Clone, Debug, Serialize, ToSchema, Union)]
 pub enum MediaMetadata {
     Show(ShowMetadata),
     Movie(MovieMetadata),
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Clone, Debug, Serialize, ToSchema, SimpleObject)]
 pub struct Title {
     /// Original title
     pub original: String,
@@ -24,7 +25,7 @@ pub struct Title {
     pub alternatives: Option<Vec<String>>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Clone, Debug, Serialize, ToSchema, SimpleObject)]
 pub struct ExternalIdentifiers {
     /// IMDb ID (e.g., tt1234567)
     pub imdb_id: Option<String>,
@@ -34,7 +35,7 @@ pub struct ExternalIdentifiers {
     pub tvdb_id: Option<u32>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Clone, Debug, Serialize, ToSchema, SimpleObject)]
 pub struct Ratings {
     /// TMDB rating as a percentage (0-100)
     pub tmdb: Option<u32>,

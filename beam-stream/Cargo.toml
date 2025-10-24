@@ -6,6 +6,18 @@ license = "AGPL-3.0-only"
 publish = false
 
 [dependencies]
+async-graphql = { version = "7.0.17", features = [
+    "apollo_persisted_queries",
+    "chrono",
+    "dataloader",
+    "log",
+    "opentelemetry",
+    "secrecy",
+    "unblock",
+    "uuid",
+    "url",
+] }
+async-graphql-axum = "7.0.17"
 axum = { workspace = true, features = ["http2", "multipart"] }
 chrono = { workspace = true, features = ["serde"] }
 color-eyre = "0.6.5"
@@ -19,11 +31,13 @@ log = { workspace = true, features = ["serde", "release_max_level_debug"] }
 m3u8-rs = "6.0.0"
 num = { version = "0.4.3", features = ["serde"] }
 num_cpus = "1.17.0"
+parking_lot = "0.12.5"
 rayon = "1.11.0"
 serde = { workspace = true, features = ["derive"] }
 tempfile = "3.23.0"
 thiserror = { workspace = true }
 tokio = { workspace = true }
+tower-http = { version = "0.6.6", features = ["cors"] }
 tracing = { workspace = true, features = ["log", "release_max_level_debug"] }
 tracing-subscriber = { workspace = true, features = ["json", "env-filter"] }
 utoipa = { version = "5.4.0", features = [

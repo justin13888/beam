@@ -1,11 +1,12 @@
 use super::{ExternalIdentifiers, Ratings};
 
 use super::Title;
+use async_graphql::SimpleObject;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use utoipa::ToSchema;
 
-#[derive(Serialize, ToSchema)]
+#[derive(Clone, Debug, Serialize, ToSchema, SimpleObject)]
 pub struct ShowMetadata {
     /// Title of the show
     pub title: Title,
@@ -19,7 +20,7 @@ pub struct ShowMetadata {
     pub identifiers: Option<ExternalIdentifiers>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Clone, Debug, Serialize, ToSchema, SimpleObject)]
 pub struct SeasonMetadata {
     /// Season number
     pub season_number: u32,
@@ -40,7 +41,7 @@ pub struct SeasonMetadata {
     // Add people involved (cast, crew, directors, writers, etc.)
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Clone, Debug, Serialize, ToSchema, SimpleObject)]
 pub struct ShowDates {
     /// First air date
     pub first_aired: Option<DateTime<Utc>>,
@@ -48,7 +49,7 @@ pub struct ShowDates {
     pub last_aired: Option<DateTime<Utc>>,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Clone, Debug, Serialize, ToSchema, SimpleObject)]
 pub struct EpisodeMetadata {
     /// Episode number within the season
     pub episode_number: u32,

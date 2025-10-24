@@ -6,6 +6,10 @@ use ffmpeg_next as ffmpeg;
 use std::{env, path::Path};
 
 fn main() -> Result<(), eyre::Error> {
+    color_eyre::install()?;
+    dotenvy::dotenv().ok();
+    beam_stream::logging::init_tracing();
+
     ffmpeg::init().unwrap();
 
     let file_path = env::args().nth(1).expect("missing file");

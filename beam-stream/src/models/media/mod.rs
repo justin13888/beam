@@ -1,14 +1,17 @@
 use serde::Serialize;
 use utoipa::ToSchema;
 
+mod movie;
 mod show;
 
+pub use movie::*;
 pub use show::*;
 
 /// Media metadata
 #[derive(Serialize, ToSchema)]
 pub enum MediaMetadata {
-    Show(ShowMetadata), // TODO: ADD `Movie(MovieMetadata)`
+    Show(ShowMetadata),
+    Movie(MovieMetadata),
 }
 
 #[derive(Serialize, ToSchema)]

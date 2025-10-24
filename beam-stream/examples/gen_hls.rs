@@ -10,6 +10,10 @@ use std::{path::PathBuf, sync::atomic::Ordering, time::Instant};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    color_eyre::install()?;
+    dotenvy::dotenv().ok();
+    beam_stream::logging::init_tracing();
+
     // Get first argument as file path
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {

@@ -5,7 +5,6 @@ use std::sync::atomic::Ordering;
 
 use eyre::{Result, eyre};
 use tracing::info;
-use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 use utoipa_scalar::{Scalar, Servable};
 
 use beam_stream::config::Config;
@@ -18,19 +17,7 @@ async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
 
     // Initialize JSON logging
-    tracing_subscriber::registry()
-        .with(
-            fmt::layer()
-                .json()
-                .with_current_span(false)
-                .with_span_list(true),
-        )
-        .with(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("beam_stream=info,tower_http=debug,axum=debug")),
-        )
-        .init();
-    // TODO: Log to something besides stdout to make filtering logs easier
+    beam_stream::logging::init_tracing();
 
     info!("Starting beam-stream...");
 
@@ -63,6 +50,7 @@ async fn main() -> Result<()> {
         .await
         .unwrap();
     let local_addr = listener.local_addr().unwrap();
+    // TODO: Use listenfd to support socket reuse
 
     info!("Server listening on http://{}", local_addr);
     info!(

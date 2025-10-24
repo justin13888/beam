@@ -37,6 +37,7 @@ use crate::models::*;
         SeasonMetadata,
         ShowDates,
         EpisodeMetadata,
+        MovieMetadata,
     )),
     tags(
         (name = "health", description = "Health check endpoints"),

@@ -2,7 +2,9 @@
 
 A high-performance streaming service built with Rust and Axum.
 
-## Setup
+## Development
+
+- Install ffmpeg/libav 8+ libraries on your system.
 
 - Copy `.env.example` to `.env` and modify as needed:
 

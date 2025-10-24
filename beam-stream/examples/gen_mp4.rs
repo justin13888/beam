@@ -13,29 +13,11 @@ use eyre::Result;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
-
 #[tokio::main]
 async fn main() -> Result<()> {
     color_eyre::install()?;
     dotenvy::dotenv().ok();
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::fmt::layer()
-                .pretty() // TODO: Consider switching to one of when in development: .pretty(), .compact()
-                .with_target(true)
-                .with_file(true)
-                .with_line_number(true)
-                .with_thread_ids(true)
-                .with_thread_names(true),
-        )
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                tracing_subscriber::EnvFilter::new("beam_stream=info,tower_http=debug,axum=debug")
-            }),
-        )
-        .init(); // TODO: See if these subscriber configs are good. If good, copy it to main.rs
+    beam_stream::logging::init_tracing();
 
     // Get command-line arguments
     let args: Vec<String> = std::env::args().collect();

@@ -5,6 +5,7 @@ A high-performance streaming service built with Rust and Axum.
 ## Development
 
 - Install ffmpeg/libav 8+ libraries on your system.
+- `cargo install cargo-watch systemfd`
 
 - Copy `.env.example` to `.env` and modify as needed:
 
@@ -21,7 +22,8 @@ A high-performance streaming service built with Rust and Axum.
 - Start development server:
 
     ```bash
-    cargo watch -x run
+    systemfd --no-pid -s http::3000 -- cargo watch -x run
+    # cargo watch -x run
     ```
 
 ## API Documentation

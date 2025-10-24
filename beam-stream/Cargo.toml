@@ -14,6 +14,7 @@ eyre = "0.6.12"
 ffmpeg-next = { workspace = true }
 fs2 = "0.4.3"
 hex = { version = "0.4.3", features = ["serde"] }
+listenfd = "1.0.2"
 log = { workspace = true, features = ["serde", "release_max_level_debug"] }
 m3u8-rs = "6.0.0"
 num = { version = "0.4.3", features = ["serde"] }

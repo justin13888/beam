@@ -4,6 +4,8 @@ mod routes;
 use std::sync::atomic::Ordering;
 
 use eyre::{Result, eyre};
+use listenfd::ListenFd;
+use tokio::net::TcpListener;
 use tracing::info;
 use utoipa_scalar::{Scalar, Servable};
 
@@ -46,17 +48,20 @@ async fn main() -> Result<()> {
     let app = router.into_make_service();
 
     info!("Binding to address: {}", config.bind_address);
-    let listener = tokio::net::TcpListener::bind(&config.bind_address)
-        .await
-        .unwrap();
+    let mut listenfd = ListenFd::from_env();
+    let listener = match listenfd.take_tcp_listener(0).unwrap() {
+        // if we are given a tcp listener on listen fd 0, we use that one
+        Some(listener) => {
+            listener.set_nonblocking(true).unwrap();
+            TcpListener::from_std(listener).unwrap()
+        }
+        // otherwise fall back to local listening
+        None => TcpListener::bind(&config.bind_address).await.unwrap(),
+    };
     let local_addr = listener.local_addr().unwrap();
-    // TODO: Use listenfd to support socket reuse
 
-    info!("Server listening on http://{}", local_addr);
-    info!(
-        "API documentation available at http://{}/openapi",
-        local_addr
-    );
+    info!("Server listening on http://{local_addr}");
+    info!("API documentation available at http://{local_addr}/openapi",);
 
     axum::serve(listener, app)
         .await

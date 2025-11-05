@@ -12,35 +12,6 @@ use std::sync::{Arc, LazyLock};
 
 use crate::utils::hash::compute_hash;
 
-/// Global dedicated thread pool for hashing operations.
-///
-/// This thread pool is configured to use one thread per physical CPU core,
-/// ignoring SMT (simultaneous multithreading), which is optimal for CPU-bound
-/// hashing workloads.
-static THREAD_POOL: LazyLock<Arc<ThreadPool>> = LazyLock::new(|| {
-    let num_physical_cores = num_cpus::get_physical();
-
-    let thread_pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(num_physical_cores)
-        .thread_name(|idx| format!("hash-worker-{}", idx))
-        .build()
-        .expect("Failed to build hash service thread pool");
-
-    tracing::info!(
-        "Initialized hash thread pool with {} threads (physical cores)",
-        num_physical_cores
-    );
-
-    Arc::new(thread_pool)
-});
-
-/// Global hash service instance.
-///
-/// This is initialized lazily on first use and provides access to the hash service
-/// which manages file hashing operations using a dedicated thread pool.
-pub static HASH_SERVICE: LazyLock<Arc<HashService>> =
-    LazyLock::new(|| Arc::new(HashService::new()));
-
 /// A service that manages file hashing operations using a dedicated Rayon thread pool.
 ///
 /// This service is designed to keep the thread pool opaque and managed internally,
@@ -51,11 +22,34 @@ pub struct HashService {
     thread_pool: Arc<ThreadPool>,
 }
 
+impl Default for HashService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HashService {
-    /// Creates a new HashService that uses the global thread pool.
-    fn new() -> Self {
+    /// Creates a new HashService with a dedicated thread pool.
+    ///
+    /// The thread pool is configured to use one thread per physical CPU core,
+    /// ignoring SMT (simultaneous multithreading), which is optimal for CPU-bound
+    /// hashing workloads.
+    pub fn new() -> Self {
+        let num_physical_cores = num_cpus::get_physical();
+
+        let thread_pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(num_physical_cores)
+            .thread_name(|idx| format!("hash-worker-{}", idx))
+            .build()
+            .expect("Failed to build hash service thread pool");
+
+        tracing::info!(
+            "Initialized hash thread pool with {} threads (physical cores)",
+            num_physical_cores
+        );
+
         Self {
-            thread_pool: THREAD_POOL.clone(),
+            thread_pool: Arc::new(thread_pool),
         }
     }
 
@@ -96,6 +90,12 @@ impl HashService {
         .map_err(io::Error::other)?
     }
 }
+
+/// Global lazy-initialized HashService instance.
+///
+/// This provides a convenient singleton for simple use cases, but you can also
+/// create your own HashService instances if needed.
+static HASH_SERVICE: LazyLock<HashService> = LazyLock::new(HashService::new);
 
 /// Computes the XXH3 64-bit hash of a file synchronously.
 ///

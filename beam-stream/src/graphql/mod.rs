@@ -8,51 +8,60 @@ use schema::*;
 
 use crate::{
     config::Config,
-    graphql::schema::media::{MediaMutation, MediaQuery},
+    graphql::schema::{
+        library::{LibraryMutation, LibraryQuery},
+        media::{MediaMutation, MediaQuery},
+    },
 };
-use beam_stream::services::metadata::METADATA_SERVICE;
 use beam_stream::services::{
-    hash::{HASH_SERVICE, HashService},
-    metadata::MetadataService,
+    hash::HashService, library::LibraryService, metadata::MetadataService,
 };
 
 pub mod schema;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct AppState {
-    pub config: Arc<Config>,
+    pub config: Config,
     pub services: AppServices,
 }
 pub type SharedAppState = Arc<AppState>;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct AppServices {
-    pub hash: Arc<HashService>,
-    pub metadata: Arc<MetadataService>,
+    pub hash: HashService,
+    pub library: LibraryService,
+    pub metadata: MetadataService,
 }
 
 impl AppServices {
     pub fn new(config: &Config) -> Self {
+        // TODO: Make sure services aren't automatically initialized statically. it should be done here.
         Self {
-            hash: HASH_SERVICE.clone(),
-            metadata: METADATA_SERVICE.clone(),
+            hash: HashService::new(),
+            library: LibraryService::new(),
+            metadata: MetadataService::new(),
         }
     }
 }
 
 pub fn create_schema(config: &Config) -> Schema<QueryRoot, MutationRoot, EmptySubscription> {
     let app_state = AppState {
-        config: Arc::new(config.clone()),
-        services: AppServices::new(&config),
+        config: config.clone(),
+        services: AppServices::new(config),
     };
+    let shared_app_state: SharedAppState = Arc::new(app_state);
 
     Schema::build(
-        QueryRoot { media: MediaQuery },
+        QueryRoot {
+            library: LibraryQuery,
+            media: MediaQuery,
+        },
         MutationRoot {
+            library: LibraryMutation,
             media: MediaMutation,
         },
         EmptySubscription,
     )
-    .data(app_state)
+    .data(shared_app_state)
     .finish()
 }

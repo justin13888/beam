@@ -87,7 +87,7 @@ async fn main() -> Result<()> {
 
     info!("Server listening on http://{local_addr}");
     info!("API documentation available at http://{local_addr}/openapi",);
-    info!("GraphiQL interface available at http://{local_addr}/{GRAPHQL_PATH}",);
+    info!("GraphiQL interface available at http://{local_addr}{GRAPHQL_PATH}",);
 
     axum::serve(listener, app)
         .await

@@ -1,11 +1,11 @@
 use async_graphql::*;
 
-use beam_stream::models::MediaMetadata;
+use crate::models::MediaMetadata;
 
 pub struct MediaQuery;
 
 // Re-export types from services for GraphQL
-use beam_stream::services::{
+use crate::services::{
     MediaConnection, MediaSearchFilters, MediaSortField, MediaTypeFilter, SortOrder,
 };
 

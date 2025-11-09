@@ -12,9 +12,7 @@ use crate::{
         library::{LibraryMutation, LibraryQuery},
         media::{MediaMutation, MediaQuery},
     },
-};
-use beam_stream::services::{
-    hash::HashService, library::LibraryService, metadata::MetadataService,
+    services::{hash::HashService, library::LibraryService, metadata::MetadataService},
 };
 
 pub mod schema;

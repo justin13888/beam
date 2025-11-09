@@ -12,7 +12,7 @@ Copy `.env.example` to `.env` and modify any necessary environment variables (ne
 
 ```bash
 bun install
-bun run codegen
+bun run codegen:full # Builds server schemas and generates client code
 bun dev
 ```
 
@@ -24,6 +24,15 @@ To build this application for production:
 
 ```bash
 bun run build
+```
+
+### Build container image
+
+```bash
+# In `beam-web` directory
+bun run codegen:full
+# In root directory
+podman build -f beam-web/Containerfile -t beam-web .
 ```
 
 ## Testing

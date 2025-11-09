@@ -1,3 +1,6 @@
 # Test video directory
 videos/
 cache/
+
+# Generated GraphQL schema
+schema.graphql

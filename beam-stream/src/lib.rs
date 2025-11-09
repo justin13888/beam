@@ -1,3 +1,5 @@
+pub mod config;
+pub mod graphql;
 pub mod logging;
 pub mod models;
 pub mod services;

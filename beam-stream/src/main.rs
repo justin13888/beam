@@ -14,13 +14,10 @@ use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 use utoipa_scalar::{Scalar, Servable};
 
-use crate::config::Config;
+use beam_stream::config::Config;
+use beam_stream::graphql::create_schema;
 use routes::create_router;
 
-use crate::graphql::create_schema;
-
-pub mod config;
-mod graphql;
 mod routes;
 
 const GRAPHQL_PATH: &str = "/graphql";

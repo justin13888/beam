@@ -1,7 +1,7 @@
 use async_graphql::*;
-use beam_stream::models::Library;
 
 use crate::graphql::SharedAppState;
+use crate::models::Library;
 
 pub struct LibraryQuery;
 

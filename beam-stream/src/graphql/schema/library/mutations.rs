@@ -1,7 +1,7 @@
 use async_graphql::*;
-use beam_stream::services::metadata::MediaFilter;
 
 use crate::graphql::SharedAppState;
+use crate::services::metadata::MediaFilter;
 
 pub struct LibraryMutation;
 

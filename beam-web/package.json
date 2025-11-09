@@ -3,14 +3,16 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"export-schema": "cd ../beam-stream && cargo run --example export_schema",
+		"codegen": "graphql-codegen --config codegen.ts",
+		"codegen:full": "bun run export-schema && bun run codegen",
 		"dev": "vite",
 		"build": "vite build && tsc",
 		"serve": "vite preview",
 		"test": "vitest run",
 		"format": "biome format",
 		"lint": "biome lint",
-		"check": "biome check",
-		"codegen": "dotenv graphql-codegen --config codegen.ts"
+		"check": "biome check"
 	},
 	"dependencies": {
 		"@apollo/client": "^4.0.7",
@@ -54,7 +56,6 @@
 		"@types/react": "^19.2.0",
 		"@types/react-dom": "^19.2.0",
 		"@vitejs/plugin-react": "^5.0.4",
-		"dotenv-cli": "^10.0.0",
 		"jsdom": "^27.0.0",
 		"typescript": "^5.7.2",
 		"vite": "^7.1.7",

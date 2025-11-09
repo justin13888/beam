@@ -1,0 +1,132 @@
+# ----------------------------------------------------
+# Stage 1: Build FFmpeg 8.0 from source
+# ----------------------------------------------------
+FROM docker.io/debian:trixie-slim AS ffmpeg-builder
+
+# Install all build dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential pkg-config yasm nasm wget ca-certificates \
+    libx264-dev libx265-dev libvpx-dev \
+    libopus-dev libass-dev libfreetype-dev libfontconfig-dev \
+    libfribidi-dev libogg-dev libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tmp/ffmpeg
+
+RUN wget -q https://ffmpeg.org/releases/ffmpeg-8.0.tar.xz && \
+    tar xf ffmpeg-8.0.tar.xz && \
+    cd ffmpeg-8.0 && \
+    ./configure \
+    --prefix=/opt/ffmpeg \
+    --disable-debug \
+    --disable-doc \
+    --disable-ffplay \
+    --enable-shared \
+    --disable-static \
+    --enable-gpl \
+    --enable-version3 \
+    --enable-fontconfig \
+    --enable-libass \
+    --enable-libfontconfig \
+    --enable-libfreetype \
+    --enable-libfribidi \
+    --enable-libopus \
+    --enable-libvpx \
+    --enable-libx264 \
+    --enable-libx265 \
+    --enable-openssl \
+    --enable-small \
+    --extra-cflags="-I/opt/ffmpeg/include" \
+    --extra-ldflags="-L/opt/ffmpeg/lib" \
+    --extra-libs=-lpthread \
+    --extra-libs=-lm && \
+    make -j$(nproc) && \
+    make install
+
+# ----------------------------------------------------
+# Chef: Setup chef image
+# ----------------------------------------------------
+FROM docker.io/rust:1.91-slim-trixie AS chef
+RUN cargo install cargo-chef --locked
+WORKDIR /app
+
+# ----------------------------------------------------
+# Planner: Create dependency recipe
+# ----------------------------------------------------
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+# ----------------------------------------------------
+# Builder: Build Rust application with FFmpeg 8
+# ----------------------------------------------------
+FROM chef AS builder
+
+# Install build dependencies including codec libraries needed for linking
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    curl \
+    clang libclang-dev pkg-config \
+    libx264-dev libx265-dev libvpx-dev \
+    libopus-dev libass-dev libfreetype-dev libfontconfig-dev \
+    libfribidi-dev libogg-dev libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy FFmpeg 8 from ffmpeg-builder
+COPY --from=ffmpeg-builder /opt/ffmpeg /opt/ffmpeg
+
+# Set up environment for FFmpeg
+ENV PKG_CONFIG_PATH=/opt/ffmpeg/lib/pkgconfig
+ENV LD_LIBRARY_PATH=/opt/ffmpeg/lib:/usr/lib/aarch64-linux-gnu:/usr/lib/x86_64-linux-gnu
+ENV PATH=/opt/ffmpeg/bin:$PATH
+
+# Copy the dependency recipe
+COPY --from=planner /app/recipe.json recipe.json
+
+# Build application
+COPY . .
+RUN cargo build --release --package beam-stream
+
+# ----------------------------------------------------
+# Runtime stage
+# ----------------------------------------------------
+FROM docker.io/debian:trixie-slim
+
+# Install minimal runtime dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libx264-* libx265-* libvpx* \
+    libopus0 libass9 libfreetype6 libfontconfig1 \
+    libfribidi0 libogg0 libssl3* \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy FFmpeg 8 from ffmpeg-builder
+COPY --from=ffmpeg-builder /opt/ffmpeg /opt/ffmpeg
+
+# Set up FFmpeg library path
+ENV LD_LIBRARY_PATH=/opt/ffmpeg/lib
+ENV PATH=/opt/ffmpeg/bin:$PATH
+RUN echo "/opt/ffmpeg/lib" > /etc/ld.so.conf.d/ffmpeg.conf && ldconfig
+
+# Create video and cache directory
+RUN mkdir -p /app /videos /cache
+
+# Set environment variables
+ENV VIDEO_DIR=/videos
+ENV CACHE_DIR=/cache
+
+# Copy the binary from builder
+COPY --from=builder /app/target/release/beam-stream /usr/local/bin/beam-stream
+
+# Create non-root user
+RUN useradd -m -u 1000 -s /bin/bash appuser
+USER appuser
+
+# Expose ports
+EXPOSE 8080/tcp
+EXPOSE 8081/tcp
+
+# Run the binary
+CMD ["beam-stream"]

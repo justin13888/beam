@@ -1,0 +1,28 @@
+# Container files
+compose.yaml
+
+# Build artifacts
+target/
+**/target/
+*.log
+
+# Node modules
+**/node_modules/
+
+# Git
+.git/
+.gitignore
+
+# IDE and editor files
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Non-Rust packages (for beam-stream builds)
+old-api/
+
+# Test video directory
+**/videos/
+**/cache/

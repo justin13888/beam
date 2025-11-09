@@ -1,0 +1,66 @@
+# ----------------------------------------------------
+# Build: Build the application using Bun
+# ----------------------------------------------------
+FROM docker.io/oven/bun:1.3-debian AS builder
+
+WORKDIR /app
+
+# Copy package files and lockfile for beam-web
+COPY beam-web/package.json beam-web/bun.lock ./beam-web/
+
+# Install dependencies
+WORKDIR /app/beam-web
+RUN bun install --frozen-lockfile
+
+# Copy beam-web source and the pre-generated schema from beam-stream
+WORKDIR /app
+COPY beam-web ./beam-web
+COPY beam-stream/schema.graphql ./beam-stream/schema.graphql
+
+# Generate TypeScript types from the schema
+WORKDIR /app/beam-web
+RUN bun run codegen
+
+# Build the application
+RUN bun run build
+
+# ----------------------------------------------------
+# Stage 2: Serve statically-built web app with HTTP (caching handled externally)
+# ----------------------------------------------------
+FROM docker.io/caddy:2-alpine
+
+# Copy built assets from builder stage (bun run build outputs to /app/beam-web/dist)
+COPY --from=builder /app/beam-web/dist /srv
+
+# Copy Caddyfile
+COPY <<EOF /etc/caddy/Caddyfile
+{
+    auto_https off
+    admin off
+}
+
+:80 {
+    root * /srv
+    encode gzip zstd
+    file_server
+    try_files {path} /index.html
+    
+    header {
+        # Security headers
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+    
+    # Cache static assets
+    @static {
+        path *.js *.css *.woff *.woff2 *.ttf *.eot *.ico *.png *.jpg *.jpeg *.gif *.svg *.webp
+    }
+    header @static Cache-Control "public, max-age=31536000, immutable"
+}
+EOF
+
+EXPOSE 80
+
+# Run as non-root user
+USER caddy

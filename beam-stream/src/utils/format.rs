@@ -1,3 +1,5 @@
+use std::os::raw::c_char;
+
 use ffmpeg_next::{
     self as ffmpeg,
     ffi::{AVChannelLayout, av_channel_layout_describe},
@@ -25,7 +27,7 @@ impl Resolution {
 }
 
 impl std::fmt::Debug for Resolution {
-fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}x{}", self.width, self.height)
     }
 }
@@ -134,7 +136,7 @@ impl ChannelLayout {
             let mut buf = vec![0u8; 128];
             let ret = av_channel_layout_describe(
                 &self.inner.0 as *const AVChannelLayout,
-                buf.as_mut_ptr() as *mut i8,
+                buf.as_mut_ptr() as *mut c_char,
                 buf.len(),
             );
 

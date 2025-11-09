@@ -39,6 +39,16 @@ Currently, there is one client app to interact with Beam:
 WIP
 <!-- TODO -->
 
+## Development
+
+See individual README files for each component.
+
+To spin up entire stack with Docker Compose for testing, run:
+
+```bash
+podman compose up
+```
+
 ## License
 
 This project is licensed under the AGPL License - see the [LICENSE](LICENSE) file for details.

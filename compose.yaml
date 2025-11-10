@@ -1,4 +1,12 @@
 services:
+  postgres:
+    image: docker.io/postgres:18.0
+    environment:
+      POSTGRES_USER: beam
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: beam
+    volumes:
+      - pgdata:/var/lib/postgresql/data
   stream:
     build:
       context: .
@@ -14,6 +22,8 @@ services:
     volumes:
       - ./beam-stream/videos:/videos
       - ./beam-stream/cache:/cache
+    depends_on:
+      - postgres
     healthcheck:
       # Healthcheck that respects the PORT environment variable
       test:
@@ -33,9 +43,10 @@ services:
     build:
       context: .
       dockerfile: beam-web/Containerfile
-    image: localhost/justin13888/beam-web:latest
     ports:
       - "8080:80"
     depends_on:
       - stream
+volumes:
+  pgdata:
 # TODO: Add other dependencies (e.g. envoy reverse proxy, database and env vars)

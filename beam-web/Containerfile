@@ -61,6 +61,3 @@ COPY <<EOF /etc/caddy/Caddyfile
 EOF
 
 EXPOSE 80
-
-# Run as non-root user
-USER caddy

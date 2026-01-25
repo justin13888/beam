@@ -17,13 +17,13 @@ A high-performance streaming service built with Rust and Axum.
 - Install some dependencies:
 
     ```bash
-    cargo install cargo-watch
+    cargo install cargo-watch systemfd
     ```
 
 - Start development server:
 
     ```bash
-    systemfd --no-pid -s http::3000 -- cargo watch -x run
+    systemfd --no-pid -s http::8000 -- cargo watch -x run # note: this will override your bind address in .env
     # cargo watch -x run
     ```
 
@@ -36,4 +36,4 @@ podman build -f beam-stream/Containerfile -t beam-stream .
 
 ## API Documentation
 
-See OpenAPI docs: `http://localhost:3000/openapi`
+See OpenAPI docs: `http://localhost:8000/openapi`

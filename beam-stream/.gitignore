@@ -4,3 +4,6 @@ cache/
 
 # Generated GraphQL schema
 schema.graphql
+
+# Environment variables
+.env

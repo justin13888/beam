@@ -28,9 +28,9 @@ pub struct Config {
 impl Config {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self, ConfigError> {
-        let bind_address = env::var("BIND_ADDRESS").unwrap_or_else(|_| "0.0.0.0:3000".to_string());
+        let bind_address = env::var("BIND_ADDRESS").unwrap_or_else(|_| "0.0.0.0:8000".to_string());
         let server_url =
-            env::var("SERVER_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
+            env::var("SERVER_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
 
         let enable_metrics = parse_bool_env("ENABLE_METRICS", false)?;
 
@@ -132,21 +132,21 @@ mod tests {
         }
 
         let config = Config::from_env().unwrap();
-        assert_eq!(config.bind_address, "0.0.0.0:3000");
+        assert_eq!(config.bind_address, "0.0.0.0:8000");
         assert!(!config.enable_metrics);
         assert_eq!(config.video_dir, PathBuf::from("./videos"));
         assert_eq!(config.cache_dir, PathBuf::from("./cache"));
 
         // Test with custom values
         unsafe {
-            env::set_var("BIND_ADDRESS", "127.0.0.1:8080");
+            env::set_var("BIND_ADDRESS", "127.0.0.1:8000");
             env::set_var("ENABLE_METRICS", "true");
             env::set_var("VIDEO_DIR", "/tmp/videos");
             env::set_var("CACHE_DIR", "/tmp/cache");
         }
 
         let config = Config::from_env().unwrap();
-        assert_eq!(config.bind_address, "127.0.0.1:8080");
+        assert_eq!(config.bind_address, "127.0.0.1:8000");
         assert_eq!(config.enable_metrics, true);
         assert_eq!(config.video_dir, PathBuf::from("/tmp/videos"));
         assert_eq!(config.cache_dir, PathBuf::from("/tmp/cache"));

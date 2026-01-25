@@ -12,13 +12,13 @@ services:
       context: .
       dockerfile: beam-stream/Containerfile
     environment:
-      BIND_ADDRESS: 0.0.0.0:3000
-      SERVER_URL: http://localhost:3000
+      BIND_ADDRESS: 0.0.0.0:8000
+      SERVER_URL: http://localhost:8000
       RUST_LOG: beam_stream=info,tower_http=debug,axum=debug
       VIDEO_DIR: /videos
       CACHE_DIR: /cache
     ports:
-      - "3000:3000"
+      - "8000:8000"
     volumes:
       - ./beam-stream/videos:/videos
       - ./beam-stream/cache:/cache

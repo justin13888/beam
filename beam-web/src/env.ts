@@ -12,7 +12,7 @@ export const env = createEnv({
 
 	client: {
 		C_APP_TITLE: z.string().min(1).default("Beam"),
-		/** Beam Stream Server URL (e.g. http://localhost:3000) */
+		/** Beam Stream Server URL (e.g. http://localhost:8000) */
 		C_STREAM_SERVER_URL: z.url(),
 	},
 

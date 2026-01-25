@@ -1,0 +1,12 @@
+services:
+  postgres:
+    image: docker.io/postgres:18.0
+    environment:
+      POSTGRES_USER: beam
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: beam
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

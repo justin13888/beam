@@ -20,6 +20,12 @@ A high-performance streaming service built with Rust and Axum.
     cargo install cargo-watch systemfd
     ```
 
+- Start other dependencies:
+
+    ```bash
+    podman compose -f compose.dependencies.yaml up -d
+    ```
+
 - Start development server:
 
     ```bash

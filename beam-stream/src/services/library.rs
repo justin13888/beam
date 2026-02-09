@@ -12,10 +12,13 @@ use tracing::{error, info, warn};
 use uuid::Uuid;
 use walkdir::WalkDir;
 
-use crate::entities::{episode, files, library, movie, movie_entry, season, show};
+use crate::entities::{
+    episode, files, library, library_movie, library_show, media_stream, movie, movie_entry, season,
+    show,
+};
 use crate::models::Library;
 use crate::services::hash::HashService;
-use crate::utils::metadata::VideoFileMetadata;
+use crate::utils::metadata::{StreamMetadata, VideoFileMetadata};
 
 use std::path::PathBuf;
 
@@ -59,6 +62,98 @@ impl LibraryServiceImpl {
             config,
             hash_service,
         }
+    }
+
+    /// Helper to extract and insert media streams for a file
+    async fn insert_media_streams(
+        &self,
+        file_id: Uuid,
+        metadata: &VideoFileMetadata,
+    ) -> Result<u32, LibraryError> {
+        let mut inserted_count = 0;
+
+        for stream in &metadata.streams {
+            let (
+                stream_type,
+                codec,
+                language,
+                title,
+                width,
+                height,
+                frame_rate,
+                bit_rate,
+                channels,
+                sample_rate,
+                channel_layout,
+            ) = match stream {
+                StreamMetadata::Video(v) => (
+                    media_stream::StreamType::Video,
+                    v.video.codec_name.clone(),
+                    None,
+                    None,
+                    Some(v.video.width as i32),
+                    Some(v.video.height as i32),
+                    v.frame_rate(),
+                    Some(v.video.bit_rate as i64),
+                    None,
+                    None,
+                    None,
+                ),
+                StreamMetadata::Audio(a) => (
+                    media_stream::StreamType::Audio,
+                    a.audio.codec_name.clone(),
+                    Some(a.audio.language.clone()).filter(|s| !s.is_empty()),
+                    Some(a.audio.title.clone()).filter(|s| !s.is_empty()),
+                    None,
+                    None,
+                    None,
+                    Some(a.audio.bit_rate as i64),
+                    Some(a.audio.channels as i32),
+                    Some(a.audio.rate as i32),
+                    Some(a.audio.channel_layout_description().to_string()),
+                ),
+                StreamMetadata::Subtitle(s) => (
+                    media_stream::StreamType::Subtitle,
+                    format!("{:?}", s.codec_id),
+                    s.language(),
+                    s.title(),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ),
+            };
+
+            let stream_model = media_stream::ActiveModel {
+                id: Set(Uuid::new_v4()),
+                file_id: Set(file_id),
+                stream_index: Set(stream.index() as i32),
+                stream_type: Set(stream_type),
+                codec: Set(codec),
+                language: Set(language),
+                title: Set(title),
+                is_default: Set(false),
+                is_forced: Set(false),
+                width: Set(width),
+                height: Set(height),
+                frame_rate: Set(frame_rate),
+                bit_rate: Set(bit_rate),
+                color_space: Set(None),
+                color_range: Set(None),
+                hdr_format: Set(None),
+                channels: Set(channels),
+                sample_rate: Set(sample_rate),
+                channel_layout: Set(channel_layout),
+            };
+
+            stream_model.insert(&self.db).await?;
+            inserted_count += 1;
+        }
+
+        Ok(inserted_count)
     }
 }
 
@@ -242,6 +337,22 @@ impl LibraryService for LibraryServiceImpl {
                     }
                 };
 
+                // Ensure library-show association exists
+                let lib_show_exists = library_show::Entity::find()
+                    .filter(library_show::Column::LibraryId.eq(lib_uuid))
+                    .filter(library_show::Column::ShowId.eq(show.id))
+                    .one(&self.db)
+                    .await?
+                    .is_some();
+
+                if !lib_show_exists {
+                    let lib_show_link = library_show::ActiveModel {
+                        library_id: Set(lib_uuid),
+                        show_id: Set(show.id),
+                    };
+                    lib_show_link.insert(&self.db).await?;
+                }
+
                 // Find or Create Season
                 let season = match season::Entity::find()
                     .filter(season::Column::ShowId.eq(show.id))
@@ -276,7 +387,11 @@ impl LibraryService for LibraryServiceImpl {
                 // Update file with episode FK
                 let mut file_active: files::ActiveModel = file_model.clone().into();
                 file_active.episode_id = Set(Some(created_episode.id));
-                file_active.insert(&self.db).await?;
+                let inserted_file = file_active.insert(&self.db).await?;
+
+                // Extract and insert media streams
+                self.insert_media_streams(inserted_file.id, &metadata)
+                    .await?;
             } else {
                 // IT IS A MOVIE
                 // Title guess: Filename
@@ -302,6 +417,22 @@ impl LibraryService for LibraryServiceImpl {
                     }
                 };
 
+                // Ensure library-movie association exists
+                let lib_movie_exists = library_movie::Entity::find()
+                    .filter(library_movie::Column::LibraryId.eq(lib_uuid))
+                    .filter(library_movie::Column::MovieId.eq(movie.id))
+                    .one(&self.db)
+                    .await?
+                    .is_some();
+
+                if !lib_movie_exists {
+                    let lib_movie_link = library_movie::ActiveModel {
+                        library_id: Set(lib_uuid),
+                        movie_id: Set(movie.id),
+                    };
+                    lib_movie_link.insert(&self.db).await?;
+                }
+
                 // Create movie_entry linking library and movie
                 let movie_entry_model = movie_entry::ActiveModel {
                     id: Set(Uuid::new_v4()),
@@ -316,7 +447,11 @@ impl LibraryService for LibraryServiceImpl {
                 // Insert file with movie_entry FK
                 let mut file_active: files::ActiveModel = file_model.into();
                 file_active.movie_entry_id = Set(Some(created_entry.id));
-                file_active.insert(&self.db).await?;
+                let inserted_file = file_active.insert(&self.db).await?;
+
+                // Extract and insert media streams
+                self.insert_media_streams(inserted_file.id, &metadata)
+                    .await?;
             }
 
             added_count += 1;

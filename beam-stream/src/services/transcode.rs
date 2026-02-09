@@ -21,13 +21,13 @@ pub trait TranscodeService: Send + Sync + std::fmt::Debug {
 }
 
 #[derive(Debug, Clone)]
-pub struct TranscodeServiceImpl {
+pub struct LocalTranscodeService {
     hash_service: Arc<dyn HashService>,
     // Distributed locks would be better, but local map works for single instance
     locks: Arc<Mutex<HashMap<String, Arc<Mutex<()>>>>>,
 }
 
-impl TranscodeServiceImpl {
+impl LocalTranscodeService {
     pub fn new(hash_service: Arc<dyn HashService>) -> Self {
         Self {
             hash_service,
@@ -37,7 +37,7 @@ impl TranscodeServiceImpl {
 }
 
 #[async_trait::async_trait]
-impl TranscodeService for TranscodeServiceImpl {
+impl TranscodeService for LocalTranscodeService {
     /// Generate MP4 cache file from source video
     // TODO: Instrument this and log the average time taken, separated by the various hot paths (e.g. cache miss and cache hit)
     async fn generate_mp4_cache(

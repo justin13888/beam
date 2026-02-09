@@ -1,3 +1,4 @@
+pub mod domain;
 mod file;
 mod library;
 mod media;

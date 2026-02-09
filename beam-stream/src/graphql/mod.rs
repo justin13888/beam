@@ -15,10 +15,10 @@ use crate::{
         media::{MediaMutation, MediaQuery},
     },
     services::{
-        hash::{HashConfig, HashService, HashServiceImpl},
-        library::{LibraryConfig, LibraryService, LibraryServiceImpl},
-        metadata::{MetadataConfig, MetadataService, MetadataServiceImpl},
-        transcode::{TranscodeService, TranscodeServiceImpl},
+        hash::{HashConfig, HashService, LocalHashService},
+        library::{LibraryConfig, LibraryService, LocalLibraryService},
+        metadata::{MetadataConfig, MetadataService, StubMetadataService},
+        transcode::{LocalTranscodeService, TranscodeService},
     },
 };
 
@@ -73,18 +73,32 @@ impl AppServices {
             cache_dir: config.cache_dir.clone(),
         };
 
-        let hash_service = Arc::new(HashServiceImpl::new(hash_config));
-        let transcode_service = Arc::new(TranscodeServiceImpl::new(
+        // Create repository implementations
+        let library_repo = Arc::new(crate::repositories::SqlLibraryRepository::new(db.clone()));
+        let file_repo = Arc::new(crate::repositories::SqlFileRepository::new(db.clone()));
+        let movie_repo = Arc::new(crate::repositories::SqlMovieRepository::new(db.clone()));
+        let show_repo = Arc::new(crate::repositories::SqlShowRepository::new(db.clone()));
+        let stream_repo = Arc::new(crate::repositories::SqlMediaStreamRepository::new(
+            db.clone(),
+        ));
+
+        let hash_service = Arc::new(LocalHashService::new(hash_config));
+        let transcode_service = Arc::new(LocalTranscodeService::new(
             hash_service.clone() as Arc<dyn HashService>
         ));
+
         Self {
             hash: hash_service.clone() as Arc<dyn HashService>,
-            library: Arc::new(LibraryServiceImpl::new(
-                db.clone(),
+            library: Arc::new(LocalLibraryService::new(
+                library_repo,
+                file_repo,
+                movie_repo,
+                show_repo,
+                stream_repo,
                 library_config,
                 hash_service.clone() as Arc<dyn HashService>,
             )),
-            metadata: Arc::new(MetadataServiceImpl::new(metadata_config)),
+            metadata: Arc::new(StubMetadataService::new(metadata_config)),
             transcode: transcode_service,
         }
     }

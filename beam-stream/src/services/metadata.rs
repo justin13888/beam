@@ -32,29 +32,25 @@ pub trait MetadataService: Send + Sync + std::fmt::Debug {
 }
 
 #[derive(Debug)]
-pub struct MetadataServiceImpl {
-    _config: MetadataConfig,
-    // /// File ID to Stream ID
-    // file_to_stream: HashMap<String, String>,
-    // /// Stream Metadata store
-    // stream_metadata: HashMap<String, MediaMetadata>,
-    // /// Stream ID to Media ID
-    // stream_to_media: HashMap<String, String>,
-    // /// Media Metadata store
-    // media_metadata: HashMap<String, MediaMetadata>,
+pub struct StubMetadataService {
+    /// Directory where cached metadata is stored
+    cache_dir: std::path::PathBuf,
+    /// Map of stub media IDs -> titles (demo purposes)
+    /// In a real implementation, this would query a database or external API
+    media_stubs: Vec<(String, String)>,
 }
 
-impl MetadataServiceImpl {
+impl StubMetadataService {
     pub fn new(config: MetadataConfig) -> Self {
-        // Scan metadata to build initial index
-
-        // Initialize
-        MetadataServiceImpl { _config: config }
+        Self {
+            cache_dir: config.cache_dir,
+            media_stubs: vec![],
+        }
     }
 }
 
 #[async_trait::async_trait]
-impl MetadataService for MetadataServiceImpl {
+impl MetadataService for StubMetadataService {
     /// Get media metadata by media ID
     async fn get_media_metadata(&self, _media_id: &str) -> Option<MediaMetadata> {
         // TODO: Convert output type to Result

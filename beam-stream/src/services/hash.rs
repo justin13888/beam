@@ -46,17 +46,17 @@ pub trait HashService: Send + Sync + std::fmt::Debug {
 /// providing a simple API for other parts of the program to use without worrying
 /// about thread pool configuration or management.
 #[derive(Debug, Clone)]
-pub struct HashServiceImpl {
+pub struct LocalHashService {
     thread_pool: Arc<ThreadPool>,
 }
 
-impl Default for HashServiceImpl {
+impl Default for LocalHashService {
     fn default() -> Self {
         Self::new(HashConfig::default())
     }
 }
 
-impl HashServiceImpl {
+impl LocalHashService {
     /// Creates a new HashService with a dedicated thread pool.
     ///
     /// The thread pool is configured to use one thread per physical CPU core,
@@ -84,7 +84,7 @@ impl HashServiceImpl {
 }
 
 #[async_trait::async_trait]
-impl HashService for HashServiceImpl {
+impl HashService for LocalHashService {
     fn hash_sync(&self, path: &Path) -> io::Result<u64> {
         let path = path.to_path_buf();
         let (tx, rx) = std::sync::mpsc::channel();
@@ -127,7 +127,7 @@ mod tests {
         temp_file.write_all(b"Hello, World!").unwrap();
         temp_file.flush().unwrap();
 
-        let service = HashServiceImpl::default();
+        let service = LocalHashService::default();
         let hash = service.hash_sync(temp_file.path()).unwrap();
         assert!(hash > 0); // Hash should be a valid u64
     }
@@ -138,7 +138,7 @@ mod tests {
         temp_file.write_all(b"Hello, World!").unwrap();
         temp_file.flush().unwrap();
 
-        let service = HashServiceImpl::default();
+        let service = LocalHashService::default();
         let hash = service
             .hash_async(temp_file.path().to_path_buf())
             .await
@@ -152,7 +152,7 @@ mod tests {
         temp_file.write_all(b"Consistent data").unwrap();
         temp_file.flush().unwrap();
 
-        let service = HashServiceImpl::default();
+        let service = LocalHashService::default();
         let hash_sync = service.hash_sync(temp_file.path()).unwrap();
         let hash_async = service
             .hash_async(temp_file.path().to_path_buf())
@@ -175,7 +175,7 @@ mod tests {
             files.push(temp_file);
         }
 
-        let service = HashServiceImpl::default();
+        let service = LocalHashService::default();
 
         // Hash all files concurrently
         let mut handles = Vec::new();
@@ -200,7 +200,7 @@ mod tests {
     #[test]
     fn test_service_initialization() {
         // Access the service to trigger initialization
-        let _ = HashServiceImpl::default();
+        let _ = LocalHashService::default();
 
         // The service should be initialized with physical cores
         assert!(num_cpus::get_physical() > 0);

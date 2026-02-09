@@ -34,10 +34,57 @@ Currently, there is one client app to interact with Beam:
 
 <!-- TODO: Add architecture diagram -->
 
-## Installation
+## Installation & Deployment
 
-WIP
-<!-- TODO -->
+### Quick Start with Docker/Podman Compose
+
+1. **Clone the repository**:
+
+   ```bash
+   git clone https://github.com/justin13888/beam.git
+   cd beam
+   ```
+
+2. **Configure environment variables**:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+3. **Start the services**:
+
+   ```bash
+   # Using Podman
+   podman compose up -d
+   
+   # Or using Docker
+   docker compose up -d
+   ```
+
+4. **Access the application**:
+
+   - Frontend: <http://localhost:8080>
+   - Backend API: <http://localhost:8000>
+   - GraphQL Playground: <http://localhost:8000/graphql>
+
+### Production Deployment
+
+For production deployments, we recommend reviewing all configurations in `.env` but at least:
+
+1. **Security**:
+   - Change `POSTGRES_PASSWORD` to a strong, unique password
+   - Use HTTPS with a reverse proxy (nginx, Caddy, Traefik)
+   - Set `SERVER_URL` and `C_STREAM_SERVER_URL` to your public domain
+
+2. **Storage**:
+   - Set `HOST_VIDEO_DIR` to your media library location
+   - Ensure sufficient disk space for `HOST_CACHE_DIR`
+   - Consider using external volumes for `HOST_POSTGRES_DATA`
+
+3. **Performance**:
+   - Enable hardware acceleration for transcoding (configure in beam-stream)
+   - Set `ENABLE_METRICS=true` for monitoring
+   - Adjust `RUST_LOG` to `info` or `warn` in production
 
 ## Development
 

@@ -4,38 +4,60 @@ services:
       context: .
       dockerfile: beam-stream/Containerfile
     environment:
-      BIND_ADDRESS: 0.0.0.0:8000
-      SERVER_URL: http://localhost:8000
-      RUST_LOG: beam_stream=info,tower_http=debug,axum=debug
-      VIDEO_DIR: /videos
-      CACHE_DIR: /cache
+      # Backend server configuration
+      BIND_ADDRESS: ${BIND_ADDRESS:-0.0.0.0:8000}
+      SERVER_URL: ${SERVER_URL:-http://localhost:8000}
+
+      # Database connection
+      DATABASE_URL: ${DATABASE_URL:-postgres://beam:password@postgres:5432/beam}
+
+      # Logging configuration
+      RUST_LOG: ${RUST_LOG:-beam_stream=info,tower_http=debug,axum=debug}
+
+      # Media directories
+      VIDEO_DIR: ${VIDEO_DIR:-/videos}
+      CACHE_DIR: ${CACHE_DIR:-/cache}
+
+      # Optional: Enable metrics
+      ENABLE_METRICS: ${ENABLE_METRICS:-false}
     ports:
-      - "8000:8000"
+      - "${STREAM_HOST_PORT:-8000}:8000"
     volumes:
-      - ./beam-stream/videos:/videos
-      - ./beam-stream/cache:/cache
+      # Use named volumes by default, or custom host paths if specified
+      - ${HOST_VIDEO_DIR:-stream_videos}:${VIDEO_DIR:-/videos}
+      - ${HOST_CACHE_DIR:-stream_cache}:${CACHE_DIR:-/cache}
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     healthcheck:
-      # Healthcheck that respects the PORT environment variable
       test:
-        [
-          "CMD",
-          "sh",
-          "-c",
-          "curl -f -k https://localhost:$$PORT/health || exit 1",
-        ]
+        ["CMD", "sh", "-c", "curl -f http://localhost:8000/health || exit 1"]
       interval: 30s
       timeout: 3s
-      start_period: 5s
+      start_period: 10s
       retries: 3
       # To disable healthcheck, use:
       # disable: true
+
   web:
     build:
       context: .
       dockerfile: beam-web/Containerfile
+      args:
+        # Pass build-time environment variables for Vite
+        C_APP_TITLE: ${C_APP_TITLE:-Beam}
+        C_STREAM_SERVER_URL: ${C_STREAM_SERVER_URL:-http://localhost:8000}
+    environment:
+      # Runtime environment variables (if needed by nginx or the container)
+      C_APP_TITLE: ${C_APP_TITLE:-Beam}
+      C_STREAM_SERVER_URL: ${C_STREAM_SERVER_URL:-http://localhost:8000}
     ports:
-      - "8080:80"
+      - "${WEB_HOST_PORT:-8080}:80"
     depends_on:
-      - stream
+      stream:
+        condition: service_healthy
+
+# Named volumes for video and cache (used when HOST_*_DIR is not set)
+volumes:
+  stream_videos:
+  stream_cache:

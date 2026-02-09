@@ -3,6 +3,10 @@
 # ----------------------------------------------------
 FROM docker.io/oven/bun:1.3-debian AS builder
 
+# Accept build arguments for environment variables
+ARG C_APP_TITLE=Beam
+ARG C_STREAM_SERVER_URL=http://localhost:8000
+
 WORKDIR /app
 
 # Copy package files and lockfile for beam-web
@@ -21,7 +25,9 @@ COPY beam-stream/schema.graphql ./beam-stream/schema.graphql
 WORKDIR /app/beam-web
 RUN bun run codegen
 
-# Build the application
+# Build the application with environment variables
+ENV C_APP_TITLE=${C_APP_TITLE}
+ENV C_STREAM_SERVER_URL=${C_STREAM_SERVER_URL}
 RUN bun run build
 
 # ----------------------------------------------------

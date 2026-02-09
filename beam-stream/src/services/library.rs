@@ -5,16 +5,14 @@ use chrono::Utc;
 use regex::Regex;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait,
-    QueryFilter, Set, TransactionTrait,
+    QueryFilter, Set,
 };
 use thiserror::Error;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 use walkdir::WalkDir;
 
-use crate::entities::{
-    episode, episode_file, indexed_file, library, movie, movie_file, season, show,
-};
+use crate::entities::{episode, files, library, movie, movie_entry, season, show};
 use crate::models::Library;
 use crate::services::hash::HashService;
 use crate::utils::metadata::VideoFileMetadata;
@@ -74,8 +72,8 @@ impl LibraryService for LibraryServiceImpl {
         // TODO: This size calculation is N+1 and slow, should be a COUNT query or cached
         let mut result = Vec::new();
         for l in libraries {
-            let size = indexed_file::Entity::find()
-                .filter(indexed_file::Column::LibraryId.eq(l.id))
+            let size = files::Entity::find()
+                .filter(files::Column::LibraryId.eq(l.id))
                 .count(&self.db)
                 .await?;
 
@@ -101,7 +99,6 @@ impl LibraryService for LibraryServiceImpl {
             id: Set(Uuid::new_v4()),
             name: Set(name),
             root_path: Set(root_path),
-            media_type: Set("generic".to_string()), // Default
             created_at: Set(now.into()),
             updated_at: Set(now.into()),
             ..Default::default()
@@ -154,8 +151,8 @@ impl LibraryService for LibraryServiceImpl {
 
             // Check if already indexed
             let path_str = path.to_string_lossy().to_string();
-            let existing = indexed_file::Entity::find()
-                .filter(indexed_file::Column::FilePath.eq(&path_str))
+            let existing = files::Entity::find()
+                .filter(files::Column::FilePath.eq(&path_str))
                 .one(&self.db)
                 .await?;
 
@@ -184,30 +181,31 @@ impl LibraryService for LibraryServiceImpl {
                     continue;
                 }
             };
-            let hash_str = format!("{:016x}", hash_value);
 
-            // Start transaction for this file
-            let txn = self.db.begin().await?;
-
-            // Insert IndexedFile
+            // Insert File
             let file_id = Uuid::new_v4();
             let now = Utc::now();
 
-            let indexed_file = indexed_file::ActiveModel {
+            // NOTE: Polymorphic FKs will be set after determining if movie or episode
+            let file_model = files::ActiveModel {
                 id: Set(file_id),
                 library_id: Set(lib_uuid),
                 file_path: Set(path_str.clone()),
-                file_hash: Set(hash_str),
+                hash_xxh3: Set(hash_value as i64), // Store XXH3 hash as BIGINT
                 file_size: Set(metadata.file_size as i64),
                 mime_type: Set(Some(format!("video/{}", metadata.format_name))),
                 duration_secs: Set(Some(metadata.duration_seconds())),
+                container_format: Set(Some(metadata.format_name.clone())),
+                is_primary: Set(true),
                 scanned_at: Set(now.into()),
+                updated_at: Set(now.into()),
+                // Polymorphic FKs: will be set below
+                movie_entry_id: Set(None),
+                episode_id: Set(None),
                 ..Default::default()
             };
 
-            let _ = indexed_file.insert(&txn).await?;
-
-            // HEURISTIC: Check for TV Show pattern
+            //HEURISTIC: Check for TV Show pattern
             let file_stem = path
                 .file_stem()
                 .map(|s| s.to_string_lossy())
@@ -228,20 +226,19 @@ impl LibraryService for LibraryServiceImpl {
                 // Find or Create Show
                 let show = match show::Entity::find()
                     .filter(show::Column::Title.eq(&show_title))
-                    .one(&txn)
+                    .one(&self.db)
                     .await?
                 {
                     Some(s) => s,
                     None => {
                         let new_show = show::ActiveModel {
                             id: Set(Uuid::new_v4()),
-                            library_id: Set(lib_uuid),
                             title: Set(show_title.clone()),
                             created_at: Set(now.into()),
                             updated_at: Set(now.into()),
                             ..Default::default()
                         };
-                        new_show.insert(&txn).await?
+                        new_show.insert(&self.db).await?
                     }
                 };
 
@@ -249,7 +246,7 @@ impl LibraryService for LibraryServiceImpl {
                 let season = match season::Entity::find()
                     .filter(season::Column::ShowId.eq(show.id))
                     .filter(season::Column::SeasonNumber.eq(season_num))
-                    .one(&txn)
+                    .one(&self.db)
                     .await?
                 {
                     Some(s) => s,
@@ -260,29 +257,26 @@ impl LibraryService for LibraryServiceImpl {
                             season_number: Set(season_num),
                             ..Default::default()
                         };
-                        new_season.insert(&txn).await?
+                        new_season.insert(&self.db).await?
                     }
                 };
 
                 // Create Episode
-                let episode = episode::ActiveModel {
+                let episode_model = episode::ActiveModel {
                     id: Set(Uuid::new_v4()),
                     season_id: Set(season.id),
                     episode_number: Set(episode_num),
                     title: Set(file_stem.to_string()), // Default title to filename
-                    duration_secs: Set(Some(metadata.duration_seconds() as f64)),
-                    // Episode table doesn't have created_at/updated_at
+                    runtime_mins: Set(Some((metadata.duration_seconds() / 60.0) as i32)),
+                    created_at: Set(now.into()),
                     ..Default::default()
                 };
-                let created_episode = episode.insert(&txn).await?;
+                let created_episode = episode_model.insert(&self.db).await?;
 
-                // Link EpisodeFile
-                let link = episode_file::ActiveModel {
-                    episode_id: Set(created_episode.id),
-                    file_id: Set(file_id),
-                    is_primary: Set(true),
-                };
-                link.insert(&txn).await?;
+                // Update file with episode FK
+                let mut file_active: files::ActiveModel = file_model.clone().into();
+                file_active.episode_id = Set(Some(created_episode.id));
+                file_active.insert(&self.db).await?;
             } else {
                 // IT IS A MOVIE
                 // Title guess: Filename
@@ -291,34 +285,40 @@ impl LibraryService for LibraryServiceImpl {
                 // Find or Create Movie
                 let movie = match movie::Entity::find()
                     .filter(movie::Column::Title.eq(&movie_title))
-                    .one(&txn)
+                    .one(&self.db)
                     .await?
                 {
                     Some(m) => m,
                     None => {
                         let new_movie = movie::ActiveModel {
                             id: Set(Uuid::new_v4()),
-                            library_id: Set(lib_uuid),
                             title: Set(movie_title),
                             runtime_mins: Set(Some((metadata.duration_seconds() / 60.0) as i32)),
                             created_at: Set(now.into()),
                             updated_at: Set(now.into()),
                             ..Default::default()
                         };
-                        new_movie.insert(&txn).await?
+                        new_movie.insert(&self.db).await?
                     }
                 };
 
-                // Link MovieFile
-                let link = movie_file::ActiveModel {
+                // Create movie_entry linking library and movie
+                let movie_entry_model = movie_entry::ActiveModel {
+                    id: Set(Uuid::new_v4()),
+                    library_id: Set(lib_uuid),
                     movie_id: Set(movie.id),
-                    file_id: Set(file_id),
+                    edition: Set(None),
                     is_primary: Set(true),
+                    created_at: Set(now.into()),
                 };
-                link.insert(&txn).await?;
+                let created_entry = movie_entry_model.insert(&self.db).await?;
+
+                // Insert file with movie_entry FK
+                let mut file_active: files::ActiveModel = file_model.into();
+                file_active.movie_entry_id = Set(Some(created_entry.id));
+                file_active.insert(&self.db).await?;
             }
 
-            txn.commit().await?;
             added_count += 1;
         }
 

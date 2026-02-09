@@ -74,7 +74,10 @@ fn main() -> Result<(), eyre::Error> {
 
                 let actual_frames = video_stream.actual_frames();
                 println!("\tFrames: {}", actual_frames);
-                println!("\tFrame rate: {:.3} fps", video_stream.frame_rate());
+                println!(
+                    "\tFrame rate: {:.3} fps",
+                    video_stream.frame_rate().unwrap_or(0.0)
+                );
                 println!("\tDisposition: {:?}", video_stream.disposition);
                 println!("\tDiscard: {:?}", video_stream.discard);
 

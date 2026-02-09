@@ -9,20 +9,22 @@ use crate::services::{
     MediaConnection, MediaSearchFilters, MediaSortField, MediaTypeFilter, SortOrder,
 };
 
-use crate::graphql::SharedAppState;
+use crate::graphql::{AuthGuard, SharedAppState};
 
 #[Object]
 impl MediaQuery {
     /// Fetch media metadata by ID
+    #[graphql(guard = "AuthGuard")]
     async fn metadata(&self, ctx: &Context<'_>, id: ID) -> Result<Option<MediaMetadata>> {
         let state = ctx.data::<SharedAppState>()?;
-        let media_metadata = state.services.metadata.get_media_metadata(&id);
+        let media_metadata = state.services.metadata.get_media_metadata(&id).await;
 
         Ok(media_metadata)
     }
 
     /// Search/explore media with cursor-based pagination (Relay-style), sorting, and filtering
     #[allow(clippy::too_many_arguments)]
+    #[graphql(guard = "AuthGuard")]
     async fn search(
         &self,
         ctx: &Context<'_>,
@@ -55,7 +57,8 @@ impl MediaQuery {
         let result = state
             .services
             .metadata
-            .search_media(first, after, last, before, sort_by, sort_order, filters);
+            .search_media(first, after, last, before, sort_by, sort_order, filters)
+            .await;
 
         Ok(result)
     }

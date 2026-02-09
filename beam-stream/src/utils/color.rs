@@ -1,22 +1,25 @@
 use ffmpeg_next as ffmpeg;
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub struct PixelFormat {
-    inner: ffmpeg::format::Pixel,
+#[derive(Eq, PartialEq, Copy, Clone, Debug, Hash)]
+pub enum PixelFormat {
+    YUV420P10LE,
+    YUV420P10BE,
+    YUV420P12LE,
+    YUV420P12BE,
+    YUV420P16LE,
+    YUV420P16BE,
+    Other(ffmpeg::ffi::AVPixelFormat),
+    None,
 }
 
 impl PixelFormat {
-    pub fn inner(&self) -> &ffmpeg::format::Pixel {
-        &self.inner
-    }
-
     /// Get bit depth from pixel format
     /// Returns None if unknown.
     pub fn bit_depth(&self) -> Option<u8> {
-        match self.inner {
-            ffmpeg::format::Pixel::YUV420P10LE | ffmpeg::format::Pixel::YUV420P10BE => Some(10),
-            ffmpeg::format::Pixel::YUV420P12LE | ffmpeg::format::Pixel::YUV420P12BE => Some(12),
-            ffmpeg::format::Pixel::YUV420P16LE | ffmpeg::format::Pixel::YUV420P16BE => Some(16),
+        match self {
+            PixelFormat::YUV420P10LE | PixelFormat::YUV420P10BE => Some(10),
+            PixelFormat::YUV420P12LE | PixelFormat::YUV420P12BE => Some(12),
+            PixelFormat::YUV420P16LE | PixelFormat::YUV420P16BE => Some(16),
             _ => None,
         } // TODO: Include everything supported by FFmpeg 8.0+
     }
@@ -24,30 +27,42 @@ impl PixelFormat {
 
 impl From<ffmpeg::format::Pixel> for PixelFormat {
     fn from(pixel: ffmpeg::format::Pixel) -> Self {
-        PixelFormat { inner: pixel }
+        match pixel {
+            ffmpeg::format::Pixel::YUV420P10LE => PixelFormat::YUV420P10LE,
+            ffmpeg::format::Pixel::YUV420P10BE => PixelFormat::YUV420P10BE,
+            ffmpeg::format::Pixel::YUV420P12LE => PixelFormat::YUV420P12LE,
+            ffmpeg::format::Pixel::YUV420P12BE => PixelFormat::YUV420P12BE,
+            ffmpeg::format::Pixel::YUV420P16LE => PixelFormat::YUV420P16LE,
+            ffmpeg::format::Pixel::YUV420P16BE => PixelFormat::YUV420P16BE,
+            ffmpeg::format::Pixel::None => PixelFormat::None,
+            other => PixelFormat::Other(other.into()),
+        }
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub struct ColorSpace {
-    inner: ffmpeg::color::Space,
+#[derive(Eq, PartialEq, Copy, Clone, Debug, Hash)]
+pub enum ColorSpace {
+    RGB,
+    BT709,
+    BT470BG,
+    SMPTE170M,
+    SMPTE240M,
+    BT2020NCL,
+    BT2020CL,
+    Other(ffmpeg::ffi::AVColorSpace),
 }
 
 impl ColorSpace {
-    pub fn inner(&self) -> &ffmpeg::color::Space {
-        &self.inner
-    }
-
     /// Get a human-readable description of the color space
     pub fn description(&self) -> &'static str {
-        match self.inner {
-            ffmpeg::color::Space::RGB => "RGB",
-            ffmpeg::color::Space::BT709 => "BT.709",
-            ffmpeg::color::Space::BT470BG => "BT.470 BG",
-            ffmpeg::color::Space::SMPTE170M => "SMPTE-170M",
-            ffmpeg::color::Space::SMPTE240M => "SMPTE-240M",
-            ffmpeg::color::Space::BT2020NCL => "BT.2020 Non-Constant Luminance",
-            ffmpeg::color::Space::BT2020CL => "BT.2020 Constant Luminance",
+        match self {
+            ColorSpace::RGB => "RGB",
+            ColorSpace::BT709 => "BT.709",
+            ColorSpace::BT470BG => "BT.470 BG",
+            ColorSpace::SMPTE170M => "SMPTE-170M",
+            ColorSpace::SMPTE240M => "SMPTE-240M",
+            ColorSpace::BT2020NCL => "BT.2020 Non-Constant Luminance",
+            ColorSpace::BT2020CL => "BT.2020 Constant Luminance",
             _ => "Unknown",
         } // TODO: Include everything supported by FFmpeg 8.0+
     }
@@ -55,25 +70,33 @@ impl ColorSpace {
 
 impl From<ffmpeg::color::Space> for ColorSpace {
     fn from(space: ffmpeg::color::Space) -> Self {
-        ColorSpace { inner: space }
+        match space {
+            ffmpeg::color::Space::RGB => ColorSpace::RGB,
+            ffmpeg::color::Space::BT709 => ColorSpace::BT709,
+            ffmpeg::color::Space::BT470BG => ColorSpace::BT470BG,
+            ffmpeg::color::Space::SMPTE170M => ColorSpace::SMPTE170M,
+            ffmpeg::color::Space::SMPTE240M => ColorSpace::SMPTE240M,
+            ffmpeg::color::Space::BT2020NCL => ColorSpace::BT2020NCL,
+            ffmpeg::color::Space::BT2020CL => ColorSpace::BT2020CL,
+            other => ColorSpace::Other(other.into()),
+        }
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub struct ColorRange {
-    inner: ffmpeg::color::Range,
+#[derive(Eq, PartialEq, Copy, Clone, Debug, Hash)]
+pub enum ColorRange {
+    MPEG,
+    JPEG,
+    Other(ffmpeg::ffi::AVColorRange),
+    Unspecified,
 }
 
 impl ColorRange {
-    pub fn inner(&self) -> &ffmpeg::color::Range {
-        &self.inner
-    }
-
     /// Get a human-readable description of the color range
     pub fn description(&self) -> &'static str {
-        match self.inner {
-            ffmpeg::color::Range::MPEG => "Limited (TV)",
-            ffmpeg::color::Range::JPEG => "Full (PC)",
+        match self {
+            ColorRange::MPEG => "Limited (TV)",
+            ColorRange::JPEG => "Full (PC)",
             _ => "Unknown",
         } // TODO: Include everything supported by FFmpeg 8.0+
     }
@@ -81,31 +104,39 @@ impl ColorRange {
 
 impl From<ffmpeg::color::Range> for ColorRange {
     fn from(range: ffmpeg::color::Range) -> Self {
-        ColorRange { inner: range }
+        match range {
+            ffmpeg::color::Range::MPEG => ColorRange::MPEG,
+            ffmpeg::color::Range::JPEG => ColorRange::JPEG,
+            ffmpeg::color::Range::Unspecified => ColorRange::Unspecified,
+        }
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub struct ColorPrimaries {
-    inner: ffmpeg::color::Primaries,
+#[derive(Eq, PartialEq, Copy, Clone, Debug, Hash)]
+pub enum ColorPrimaries {
+    BT709,
+    BT470BG,
+    SMPTE170M,
+    SMPTE240M,
+    BT2020,
+    SMPTE428,
+    SMPTE431,
+    SMPTE432,
+    Other(ffmpeg::ffi::AVColorPrimaries),
 }
 
 impl ColorPrimaries {
-    pub fn inner(&self) -> &ffmpeg::color::Primaries {
-        &self.inner
-    }
-
     /// Get a human-readable description of the color primaries
     pub fn description(&self) -> &'static str {
-        match self.inner {
-            ffmpeg::color::Primaries::BT709 => "BT.709",
-            ffmpeg::color::Primaries::BT470BG => "BT.470 BG",
-            ffmpeg::color::Primaries::SMPTE170M => "SMPTE-170M",
-            ffmpeg::color::Primaries::SMPTE240M => "SMPTE-240M",
-            ffmpeg::color::Primaries::BT2020 => "BT.2020",
-            ffmpeg::color::Primaries::SMPTE428 => "SMPTE-428",
-            ffmpeg::color::Primaries::SMPTE431 => "SMPTE-431",
-            ffmpeg::color::Primaries::SMPTE432 => "SMPTE-432",
+        match self {
+            ColorPrimaries::BT709 => "BT.709",
+            ColorPrimaries::BT470BG => "BT.470 BG",
+            ColorPrimaries::SMPTE170M => "SMPTE-170M",
+            ColorPrimaries::SMPTE240M => "SMPTE-240M",
+            ColorPrimaries::BT2020 => "BT.2020",
+            ColorPrimaries::SMPTE428 => "SMPTE-428",
+            ColorPrimaries::SMPTE431 => "SMPTE-431",
+            ColorPrimaries::SMPTE432 => "SMPTE-432",
             _ => "Unknown",
         } // TODO: Include everything supported by FFmpeg 8.0+
     }
@@ -113,28 +144,39 @@ impl ColorPrimaries {
 
 impl From<ffmpeg::color::Primaries> for ColorPrimaries {
     fn from(primaries: ffmpeg::color::Primaries) -> Self {
-        ColorPrimaries { inner: primaries }
+        match primaries {
+            ffmpeg::color::Primaries::BT709 => ColorPrimaries::BT709,
+            ffmpeg::color::Primaries::BT470BG => ColorPrimaries::BT470BG,
+            ffmpeg::color::Primaries::SMPTE170M => ColorPrimaries::SMPTE170M,
+            ffmpeg::color::Primaries::SMPTE240M => ColorPrimaries::SMPTE240M,
+            ffmpeg::color::Primaries::BT2020 => ColorPrimaries::BT2020,
+            ffmpeg::color::Primaries::SMPTE428 => ColorPrimaries::SMPTE428,
+            ffmpeg::color::Primaries::SMPTE431 => ColorPrimaries::SMPTE431,
+            ffmpeg::color::Primaries::SMPTE432 => ColorPrimaries::SMPTE432,
+            other => ColorPrimaries::Other(other.into()),
+        }
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub struct ColorTransferCharacteristic {
-    inner: ffmpeg::color::TransferCharacteristic,
+#[derive(Eq, PartialEq, Copy, Clone, Debug, Hash)]
+pub enum ColorTransferCharacteristic {
+    BT709,
+    SMPTE170M,
+    SMPTE240M,
+    SMPTE2084,
+    AribStdB67,
+    Other(ffmpeg::ffi::AVColorTransferCharacteristic),
 }
 
 impl ColorTransferCharacteristic {
-    pub fn inner(&self) -> &ffmpeg::color::TransferCharacteristic {
-        &self.inner
-    }
-
     /// Get a human-readable description of the transfer characteristic
     pub fn description(&self) -> &'static str {
-        match self.inner {
-            ffmpeg::color::TransferCharacteristic::BT709 => "BT.709",
-            ffmpeg::color::TransferCharacteristic::SMPTE170M => "SMPTE-170M",
-            ffmpeg::color::TransferCharacteristic::SMPTE240M => "SMPTE-240M", 
-            ffmpeg::color::TransferCharacteristic::SMPTE2084 => "SMPTE-2084 (PQ)",
-            ffmpeg::color::TransferCharacteristic::ARIB_STD_B67 => "HLG (Hybrid Log-Gamma)",
+        match self {
+            ColorTransferCharacteristic::BT709 => "BT.709",
+            ColorTransferCharacteristic::SMPTE170M => "SMPTE-170M",
+            ColorTransferCharacteristic::SMPTE240M => "SMPTE-240M",
+            ColorTransferCharacteristic::SMPTE2084 => "SMPTE-2084 (PQ)",
+            ColorTransferCharacteristic::AribStdB67 => "HLG (Hybrid Log-Gamma)",
             _ => "Unknown",
         } // TODO: Include everything supported by FFmpeg 8.0+
     }
@@ -142,38 +184,55 @@ impl ColorTransferCharacteristic {
     /// Check if this is an HDR transfer characteristic
     pub fn is_hdr(&self) -> bool {
         matches!(
-            self.inner,
-            ffmpeg::color::TransferCharacteristic::SMPTE2084
-                | ffmpeg::color::TransferCharacteristic::ARIB_STD_B67
+            self,
+            ColorTransferCharacteristic::SMPTE2084 | ColorTransferCharacteristic::AribStdB67
         )
     }
 }
 
 impl From<ffmpeg::color::TransferCharacteristic> for ColorTransferCharacteristic {
     fn from(transfer: ffmpeg::color::TransferCharacteristic) -> Self {
-        ColorTransferCharacteristic { inner: transfer }
+        match transfer {
+            ffmpeg::color::TransferCharacteristic::BT709 => ColorTransferCharacteristic::BT709,
+            ffmpeg::color::TransferCharacteristic::SMPTE170M => {
+                ColorTransferCharacteristic::SMPTE170M
+            }
+            ffmpeg::color::TransferCharacteristic::SMPTE240M => {
+                ColorTransferCharacteristic::SMPTE240M
+            }
+            ffmpeg::color::TransferCharacteristic::SMPTE2084 => {
+                ColorTransferCharacteristic::SMPTE2084
+            }
+            ffmpeg::color::TransferCharacteristic::ARIB_STD_B67 => {
+                ColorTransferCharacteristic::AribStdB67
+            }
+            other => ColorTransferCharacteristic::Other(other.into()),
+        }
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub struct ChromaLocation {
-    inner: ffmpeg::chroma::Location,
+#[derive(Eq, PartialEq, Copy, Clone, Debug, Hash)]
+pub enum ChromaLocation {
+    Left,
+    Center,
+    TopLeft,
+    Top,
+    BottomLeft,
+    Bottom,
+    Other(ffmpeg::ffi::AVChromaLocation),
+    Unspecified,
 }
 
 impl ChromaLocation {
-    pub fn inner(&self) -> &ffmpeg::chroma::Location {
-        &self.inner
-    }
-
     /// Get a human-readable description of the chroma location
     pub fn description(&self) -> &'static str {
-        match self.inner {
-            ffmpeg::chroma::Location::Left => "Left",
-            ffmpeg::chroma::Location::Center => "Center",
-            ffmpeg::chroma::Location::TopLeft => "Top Left",
-            ffmpeg::chroma::Location::Top => "Top",
-            ffmpeg::chroma::Location::BottomLeft => "Bottom Left", 
-            ffmpeg::chroma::Location::Bottom => "Bottom",
+        match self {
+            ChromaLocation::Left => "Left",
+            ChromaLocation::Center => "Center",
+            ChromaLocation::TopLeft => "Top Left",
+            ChromaLocation::Top => "Top",
+            ChromaLocation::BottomLeft => "Bottom Left",
+            ChromaLocation::Bottom => "Bottom",
             _ => "Unknown",
         } // TODO: Include everything supported by FFmpeg 8.0+
     }
@@ -181,6 +240,14 @@ impl ChromaLocation {
 
 impl From<ffmpeg::chroma::Location> for ChromaLocation {
     fn from(location: ffmpeg::chroma::Location) -> Self {
-        ChromaLocation { inner: location }
+        match location {
+            ffmpeg::chroma::Location::Left => ChromaLocation::Left,
+            ffmpeg::chroma::Location::Center => ChromaLocation::Center,
+            ffmpeg::chroma::Location::TopLeft => ChromaLocation::TopLeft,
+            ffmpeg::chroma::Location::Top => ChromaLocation::Top,
+            ffmpeg::chroma::Location::BottomLeft => ChromaLocation::BottomLeft,
+            ffmpeg::chroma::Location::Bottom => ChromaLocation::Bottom,
+            ffmpeg::chroma::Location::Unspecified => ChromaLocation::Unspecified,
+        }
     }
 }

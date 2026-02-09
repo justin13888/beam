@@ -1,9 +1,11 @@
 use std::sync::atomic::Ordering;
 
 use async_graphql::http::GraphiQLSource;
-use async_graphql_axum::GraphQL;
+use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::{
     Router,
+    extract::Extension,
+    http::HeaderMap,
     response::{Html, IntoResponse},
     routing::get,
 };
@@ -14,8 +16,8 @@ use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 use utoipa_scalar::{Scalar, Servable};
 
-use beam_stream::config::Config;
-use beam_stream::graphql::create_schema;
+use beam_stream::graphql::{AppSchema, UserContext, create_schema};
+use beam_stream::{config::Config, graphql::AppContext};
 use routes::create_router;
 
 mod routes;
@@ -52,12 +54,20 @@ async fn main() -> Result<()> {
     // Initialize m3u8-rs static variables
     m3u8_rs::WRITE_OPT_FLOAT_PRECISION.store(5, Ordering::Relaxed);
 
+    // Connect to Database
+    info!("Connecting to database at {}", config.database_url);
+    let db = sea_orm::Database::connect(&config.database_url)
+        .await
+        .map_err(|e| eyre!("Failed to connect to database: {}", e))?;
+    info!("Connected to database");
+
     let (router, api) = create_router().split_for_parts();
     let router = router.merge(Scalar::with_url("/openapi", api));
 
-    let schema = create_schema(&config);
-    let graphql_router =
-        Router::new().route("/graphql", get(graphiql).post_service(GraphQL::new(schema)));
+    let schema = create_schema(&config, db);
+    let graphql_router = Router::new()
+        .route("/graphql", get(graphiql).post(graphql_handler))
+        .layer(Extension(schema));
 
     let app = router
         .merge(graphql_router)
@@ -95,4 +105,27 @@ async fn main() -> Result<()> {
 
 async fn graphiql() -> impl IntoResponse {
     Html(GraphiQLSource::build().endpoint(GRAPHQL_PATH).finish())
+}
+
+async fn graphql_handler(
+    headers: HeaderMap,
+    Extension(schema): Extension<AppSchema>,
+    req: GraphQLRequest,
+) -> GraphQLResponse {
+    let mut req = req.into_inner();
+
+    let mut user_context = None;
+
+    // TODO: FIX THIS BOGUS
+    if let Some(user_id) = headers.get("X-User-Id")
+        && let Ok(user_id_str) = user_id.to_str()
+    {
+        user_context = Some(UserContext {
+            user_id: user_id_str.to_string(),
+        });
+    }
+    let app_context = AppContext::new(user_context);
+    req = req.data(app_context);
+
+    schema.execute(req).await.into()
 }

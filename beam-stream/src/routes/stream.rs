@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
 use axum::body::Body;
-use axum::extract::Path;
+use axum::extract::{Extension, Path};
 use axum::http::HeaderMap;
 use axum::http::StatusCode;
 use axum::response::Response;
-use beam_stream::utils::cache::generate_mp4_cache;
+use beam_stream::graphql::SharedAppState;
 use tokio::fs::File;
 use tracing::{debug, error, trace};
 
@@ -24,10 +24,11 @@ use tracing::{debug, error, trace};
     ),
     tag = "media"
 )]
-#[tracing::instrument]
+#[tracing::instrument(skip(state))]
 pub async fn stream_mp4(
     Path(id): Path<String>,
     headers: HeaderMap,
+    Extension(state): Extension<SharedAppState>,
 ) -> Result<Response, StatusCode> {
     debug!("Streaming media with ID: {}", id);
 
@@ -52,7 +53,12 @@ pub async fn stream_mp4(
     if !cache_mp4_path.exists() {
         trace!("Cached MP4 not found, generating: {:?}", cache_mp4_path);
 
-        if let Err(err) = generate_mp4_cache(&source_video_path, &cache_mp4_path).await {
+        if let Err(err) = state
+            .services
+            .transcode
+            .generate_mp4_cache(&source_video_path, &cache_mp4_path)
+            .await
+        {
             error!("Failed to generate MP4: {:?}", err);
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }

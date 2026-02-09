@@ -1,12 +1,13 @@
 //! Example code to generate a HLS media playlist (to a hypothetical server) from a video file
 
+use beam_stream::services::hash::HashServiceImpl;
 use beam_stream::utils::file::FileType;
 use beam_stream::utils::metadata::VideoFileMetadata;
 use beam_stream::utils::stream::StreamBuilder;
 use beam_stream::utils::stream::hls::HlsStreamGenerator;
 use eyre::Result;
 use m3u8_rs::WRITE_OPT_FLOAT_PRECISION;
-use std::{path::PathBuf, sync::atomic::Ordering, time::Instant};
+use std::{path::PathBuf, sync::Arc, sync::atomic::Ordering, time::Instant};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -34,7 +35,8 @@ async fn main() -> Result<()> {
     WRITE_OPT_FLOAT_PRECISION.store(5, Ordering::Relaxed);
 
     // === Generate HLS playlist in directory ===
-    let mut stream_builder = StreamBuilder::new();
+    let hash_service = Arc::new(HashServiceImpl::default());
+    let mut stream_builder = StreamBuilder::new(hash_service);
     stream_builder.add_file(FileType::Video, &file_path);
     let stream_configuration = stream_builder.build().await?;
     println!("Stream configuration: {:#?}", stream_configuration);

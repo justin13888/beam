@@ -41,165 +41,166 @@ impl From<Resolution> for m3u8_rs::Resolution {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SampleFormat {
-    inner: ffmpeg::format::Sample,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SampleFormat {
+    U8(SampleType),
+    I16(SampleType),
+    I32(SampleType),
+    I64(SampleType),
+    F32(SampleType),
+    F64(SampleType),
+    None,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SampleType {
+    Packed,
+    Planar,
 }
 
 impl SampleFormat {
-    pub fn inner(&self) -> &ffmpeg::format::Sample {
-        &self.inner
-    }
-
     /// Get bit depth from sample format
     pub fn bit_depth(&self) -> Option<u8> {
-        match self.inner {
-            ffmpeg::format::Sample::U8(_) => Some(8),
-            ffmpeg::format::Sample::I16(_) => Some(16),
-            ffmpeg::format::Sample::I32(_) => Some(32),
-            ffmpeg::format::Sample::I64(_) => Some(64),
-            ffmpeg::format::Sample::F32(_) => Some(32),
-            ffmpeg::format::Sample::F64(_) => Some(64),
-            _ => None,
+        match self {
+            SampleFormat::U8(_) => Some(8),
+            SampleFormat::I16(_) => Some(16),
+            SampleFormat::I32(_) => Some(32),
+            SampleFormat::I64(_) => Some(64),
+            SampleFormat::F32(_) => Some(32),
+            SampleFormat::F64(_) => Some(64),
+            SampleFormat::None => None,
         }
     }
 
     /// Check if the sample format is planar
     pub fn is_planar(&self) -> bool {
         matches!(
-            self.inner,
-            ffmpeg::format::Sample::U8(ffmpeg::format::sample::Type::Planar)
-                | ffmpeg::format::Sample::I16(ffmpeg::format::sample::Type::Planar)
-                | ffmpeg::format::Sample::I32(ffmpeg::format::sample::Type::Planar)
-                | ffmpeg::format::Sample::I64(ffmpeg::format::sample::Type::Planar)
-                | ffmpeg::format::Sample::F32(ffmpeg::format::sample::Type::Planar)
-                | ffmpeg::format::Sample::F64(ffmpeg::format::sample::Type::Planar)
+            self,
+            SampleFormat::U8(SampleType::Planar)
+                | SampleFormat::I16(SampleType::Planar)
+                | SampleFormat::I32(SampleType::Planar)
+                | SampleFormat::I64(SampleType::Planar)
+                | SampleFormat::F32(SampleType::Planar)
+                | SampleFormat::F64(SampleType::Planar)
         )
     }
 
     /// Get a human-readable description of the sample format
     pub fn description(&self) -> &'static str {
-        match self.inner {
-            ffmpeg::format::Sample::U8(ffmpeg::format::sample::Type::Packed) => "8-bit unsigned",
-            ffmpeg::format::Sample::U8(ffmpeg::format::sample::Type::Planar) => {
-                "8-bit unsigned planar"
-            }
-            ffmpeg::format::Sample::I16(ffmpeg::format::sample::Type::Packed) => "16-bit signed",
-            ffmpeg::format::Sample::I16(ffmpeg::format::sample::Type::Planar) => {
-                "16-bit signed planar"
-            }
-            ffmpeg::format::Sample::I32(ffmpeg::format::sample::Type::Packed) => "32-bit signed",
-            ffmpeg::format::Sample::I32(ffmpeg::format::sample::Type::Planar) => {
-                "32-bit signed planar"
-            }
-            ffmpeg::format::Sample::I64(ffmpeg::format::sample::Type::Packed) => "64-bit signed",
-            ffmpeg::format::Sample::I64(ffmpeg::format::sample::Type::Planar) => {
-                "64-bit signed planar"
-            }
-            ffmpeg::format::Sample::F32(ffmpeg::format::sample::Type::Packed) => "32-bit float",
-            ffmpeg::format::Sample::F32(ffmpeg::format::sample::Type::Planar) => {
-                "32-bit float planar"
-            }
-            ffmpeg::format::Sample::F64(ffmpeg::format::sample::Type::Packed) => "64-bit float",
-            ffmpeg::format::Sample::F64(ffmpeg::format::sample::Type::Planar) => {
-                "64-bit float planar"
-            }
-            ffmpeg::format::Sample::None => "None",
+        match self {
+            SampleFormat::U8(SampleType::Packed) => "8-bit unsigned",
+            SampleFormat::U8(SampleType::Planar) => "8-bit unsigned planar",
+            SampleFormat::I16(SampleType::Packed) => "16-bit signed",
+            SampleFormat::I16(SampleType::Planar) => "16-bit signed planar",
+            SampleFormat::I32(SampleType::Packed) => "32-bit signed",
+            SampleFormat::I32(SampleType::Planar) => "32-bit signed planar",
+            SampleFormat::I64(SampleType::Packed) => "64-bit signed",
+            SampleFormat::I64(SampleType::Planar) => "64-bit signed planar",
+            SampleFormat::F32(SampleType::Packed) => "32-bit float",
+            SampleFormat::F32(SampleType::Planar) => "32-bit float planar",
+            SampleFormat::F64(SampleType::Packed) => "64-bit float",
+            SampleFormat::F64(SampleType::Planar) => "64-bit float planar",
+            SampleFormat::None => "None",
         }
     }
 }
 
 impl From<ffmpeg::format::Sample> for SampleFormat {
     fn from(sample: ffmpeg::format::Sample) -> Self {
-        SampleFormat { inner: sample }
+        match sample {
+            ffmpeg::format::Sample::U8(t) => SampleFormat::U8(t.into()),
+            ffmpeg::format::Sample::I16(t) => SampleFormat::I16(t.into()),
+            ffmpeg::format::Sample::I32(t) => SampleFormat::I32(t.into()),
+            ffmpeg::format::Sample::I64(t) => SampleFormat::I64(t.into()),
+            ffmpeg::format::Sample::F32(t) => SampleFormat::F32(t.into()),
+            ffmpeg::format::Sample::F64(t) => SampleFormat::F64(t.into()),
+            ffmpeg::format::Sample::None => SampleFormat::None,
+        }
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+impl From<ffmpeg::format::sample::Type> for SampleType {
+    fn from(t: ffmpeg::format::sample::Type) -> Self {
+        match t {
+            ffmpeg::format::sample::Type::Packed => SampleType::Packed,
+            ffmpeg::format::sample::Type::Planar => SampleType::Planar,
+        }
+    }
+}
+
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub struct ChannelLayout {
-    inner: ffmpeg::channel_layout::ChannelLayout,
+    pub channels: u16,
+    pub description: Option<String>,
 }
 
 impl ChannelLayout {
-    pub fn inner(&self) -> &ffmpeg::channel_layout::ChannelLayout {
-        &self.inner
-    }
-
     /// Get the number of channels
     pub fn channels(&self) -> u16 {
-        self.inner.channels().try_into().unwrap_or(0)
+        self.channels
     }
 
     /// Get a string description of the channel layout
     pub fn description(&self) -> Option<String> {
-        unsafe {
-            let mut buf = vec![0u8; 128];
-            let ret = av_channel_layout_describe(
-                &self.inner.0 as *const AVChannelLayout,
-                buf.as_mut_ptr() as *mut c_char,
-                buf.len(),
-            );
-
-            if ret < 0 {
-                return None;
-            }
-
-            let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
-            String::from_utf8(buf[..len].to_vec()).ok()
-        }
-        // match self.channels() {
-        //     1 => "Mono".to_string(),
-        //     2 => "Stereo".to_string(),
-        //     6 => "5.1 Surround".to_string(),
-        //     8 => "7.1 Surround".to_string(),
-        //     n => format!("{} channels", n),
-        // }
+        self.description.clone()
     }
 
     /// Check if this is a standard surround sound layout
     pub fn is_surround(&self) -> bool {
-        self.channels() > 2
+        self.channels > 2
     }
 }
 
 impl From<ffmpeg::channel_layout::ChannelLayout> for ChannelLayout {
     fn from(layout: ffmpeg::channel_layout::ChannelLayout) -> Self {
-        ChannelLayout { inner: layout }
+        let channels = layout.channels().try_into().unwrap_or(0);
+        let description = unsafe {
+            let mut buf = vec![0u8; 128];
+            let ret = av_channel_layout_describe(
+                &layout.0 as *const AVChannelLayout,
+                buf.as_mut_ptr() as *mut c_char,
+                buf.len(),
+            );
+
+            if ret < 0 {
+                None
+            } else {
+                let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+                String::from_utf8(buf[..len].to_vec()).ok()
+            }
+        };
+
+        ChannelLayout {
+            channels,
+            description,
+        }
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+#[derive(Eq, PartialEq, Copy, Clone, Debug, Hash)]
 pub struct Disposition {
-    inner: ffmpeg::format::stream::Disposition,
+    flags: i32,
 }
 
 impl Disposition {
-    pub fn inner(&self) -> &ffmpeg::format::stream::Disposition {
-        &self.inner
-    }
-
     /// Check if this stream is the default stream
     pub fn is_default(&self) -> bool {
-        self.inner
-            .contains(ffmpeg::format::stream::Disposition::DEFAULT)
+        (self.flags & ffmpeg::format::stream::Disposition::DEFAULT.bits() as i32) != 0
     }
 
     /// Check if this stream is forced
     pub fn is_forced(&self) -> bool {
-        self.inner
-            .contains(ffmpeg::format::stream::Disposition::FORCED)
+        (self.flags & ffmpeg::format::stream::Disposition::FORCED.bits() as i32) != 0
     }
 
     /// Check if this stream contains hearing impaired content
     pub fn is_hearing_impaired(&self) -> bool {
-        self.inner
-            .contains(ffmpeg::format::stream::Disposition::HEARING_IMPAIRED)
+        (self.flags & ffmpeg::format::stream::Disposition::HEARING_IMPAIRED.bits() as i32) != 0
     }
 
     /// Check if this stream contains visual impaired content
     pub fn is_visual_impaired(&self) -> bool {
-        self.inner
-            .contains(ffmpeg::format::stream::Disposition::VISUAL_IMPAIRED)
+        (self.flags & ffmpeg::format::stream::Disposition::VISUAL_IMPAIRED.bits() as i32) != 0
     }
 
     /// Get a human-readable description of the disposition flags
@@ -225,6 +226,8 @@ impl Disposition {
 
 impl From<ffmpeg::format::stream::Disposition> for Disposition {
     fn from(disposition: ffmpeg::format::stream::Disposition) -> Self {
-        Disposition { inner: disposition }
+        Disposition {
+            flags: disposition.bits() as i32,
+        }
     }
 }

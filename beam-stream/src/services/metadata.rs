@@ -2,9 +2,38 @@ use async_graphql::{Enum, SimpleObject};
 use thiserror::Error;
 
 use crate::models::{MediaMetadata, MovieMetadata, Title};
+use std::path::PathBuf;
+
+#[derive(Debug, Clone)]
+pub struct MetadataConfig {
+    pub cache_dir: PathBuf,
+}
+
+#[async_trait::async_trait]
+pub trait MetadataService: Send + Sync + std::fmt::Debug {
+    /// Get media metadata by media ID
+    async fn get_media_metadata(&self, media_id: &str) -> Option<MediaMetadata>;
+
+    /// Search/explore media with cursor-based pagination, sorting, and filtering
+    #[allow(clippy::too_many_arguments)]
+    async fn search_media(
+        &self,
+        first: Option<u32>,
+        after: Option<String>,
+        last: Option<u32>,
+        before: Option<String>,
+        sort_by: MediaSortField,
+        sort_order: SortOrder,
+        filters: MediaSearchFilters,
+    ) -> MediaConnection;
+
+    /// Refresh metadata for by media filter
+    async fn refresh_metadata(&self, filter: MediaFilter) -> Result<(), MetadataError>;
+}
 
 #[derive(Debug)]
-pub struct MetadataService {
+pub struct MetadataServiceImpl {
+    _config: MetadataConfig,
     // /// File ID to Stream ID
     // file_to_stream: HashMap<String, String>,
     // /// Stream Metadata store
@@ -15,16 +44,19 @@ pub struct MetadataService {
     // media_metadata: HashMap<String, MediaMetadata>,
 }
 
-impl MetadataService {
-    pub fn new() -> Self {
+impl MetadataServiceImpl {
+    pub fn new(config: MetadataConfig) -> Self {
         // Scan metadata to build initial index
 
         // Initialize
-        MetadataService {}
+        MetadataServiceImpl { _config: config }
     }
+}
 
+#[async_trait::async_trait]
+impl MetadataService for MetadataServiceImpl {
     /// Get media metadata by media ID
-    pub fn get_media_metadata(&self, _media_id: &str) -> Option<MediaMetadata> {
+    async fn get_media_metadata(&self, _media_id: &str) -> Option<MediaMetadata> {
         // TODO: Convert output type to Result
         // let media_metadata = MediaMetadata::Show(ShowMetadata {
         //     title: Title {
@@ -73,7 +105,7 @@ impl MetadataService {
 
     /// Search/explore media with cursor-based pagination, sorting, and filtering
     #[allow(clippy::too_many_arguments)]
-    pub fn search_media(
+    async fn search_media(
         &self,
         first: Option<u32>,
         after: Option<String>,
@@ -195,7 +227,7 @@ impl MetadataService {
     }
 
     /// Refresh metadata for by media filter
-    pub fn refresh_metadata(&self, _filter: MediaFilter) -> Result<(), MetadataError> {
+    async fn refresh_metadata(&self, _filter: MediaFilter) -> Result<(), MetadataError> {
         todo!()
     }
 }

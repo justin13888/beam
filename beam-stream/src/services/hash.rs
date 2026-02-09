@@ -8,56 +8,84 @@
 use rayon::ThreadPool;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use crate::utils::hash::compute_hash;
+#[derive(Debug, Clone)]
+pub struct HashConfig {
+    pub num_threads: usize,
+}
+
+impl Default for HashConfig {
+    fn default() -> Self {
+        Self {
+            num_threads: num_cpus::get_physical(),
+        }
+    }
+}
+
+/// A service that manages file hashing operations.
+#[async_trait::async_trait]
+pub trait HashService: Send + Sync + std::fmt::Debug {
+    /// Computes the XXH3 64-bit hash of a file synchronously.
+    ///
+    /// This method runs the hashing operation on the service's dedicated thread pool,
+    /// blocking the current thread until complete.
+    fn hash_sync(&self, path: &Path) -> io::Result<u64>;
+
+    /// Computes the XXH3 64-bit hash of a file asynchronously.
+    ///
+    /// This method offloads the hashing operation to the service's dedicated thread pool,
+    /// allowing the async runtime to continue processing other tasks.
+    async fn hash_async(&self, path: PathBuf) -> io::Result<u64>;
+}
 
 /// A service that manages file hashing operations using a dedicated Rayon thread pool.
 ///
 /// This service is designed to keep the thread pool opaque and managed internally,
 /// providing a simple API for other parts of the program to use without worrying
 /// about thread pool configuration or management.
-#[derive(Debug)]
-pub struct HashService {
+#[derive(Debug, Clone)]
+pub struct HashServiceImpl {
     thread_pool: Arc<ThreadPool>,
 }
 
-impl Default for HashService {
+impl Default for HashServiceImpl {
     fn default() -> Self {
-        Self::new()
+        Self::new(HashConfig::default())
     }
 }
 
-impl HashService {
+impl HashServiceImpl {
     /// Creates a new HashService with a dedicated thread pool.
     ///
     /// The thread pool is configured to use one thread per physical CPU core,
     /// ignoring SMT (simultaneous multithreading), which is optimal for CPU-bound
     /// hashing workloads.
-    pub fn new() -> Self {
-        let num_physical_cores = num_cpus::get_physical();
+    pub fn new(config: HashConfig) -> Self {
+        let num_threads = if config.num_threads > 0 {
+            config.num_threads
+        } else {
+            num_cpus::get_physical()
+        };
 
         let thread_pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(num_physical_cores)
+            .num_threads(num_threads)
             .thread_name(|idx| format!("hash-worker-{}", idx))
             .build()
             .expect("Failed to build hash service thread pool");
 
-        tracing::info!(
-            "Initialized hash thread pool with {} threads (physical cores)",
-            num_physical_cores
-        );
+        tracing::info!("Initialized hash thread pool with {} threads", num_threads);
 
         Self {
             thread_pool: Arc::new(thread_pool),
         }
     }
+}
 
-    /// Computes the XXH3 64-bit hash of a file synchronously.
-    ///
-    /// This method runs the hashing operation on the service's dedicated thread pool,
-    /// blocking the current thread until complete.
-    pub fn hash_sync(&self, path: &Path) -> io::Result<u64> {
+#[async_trait::async_trait]
+impl HashService for HashServiceImpl {
+    fn hash_sync(&self, path: &Path) -> io::Result<u64> {
         let path = path.to_path_buf();
         let (tx, rx) = std::sync::mpsc::channel();
 
@@ -69,11 +97,7 @@ impl HashService {
         rx.recv().map_err(io::Error::other)?
     }
 
-    /// Computes the XXH3 64-bit hash of a file asynchronously.
-    ///
-    /// This method offloads the hashing operation to the service's dedicated thread pool,
-    /// allowing the async runtime to continue processing other tasks.
-    pub async fn hash_async(&self, path: PathBuf) -> io::Result<u64> {
+    async fn hash_async(&self, path: PathBuf) -> io::Result<u64> {
         let thread_pool = self.thread_pool.clone();
 
         tokio::task::spawn_blocking(move || {
@@ -91,71 +115,6 @@ impl HashService {
     }
 }
 
-/// Global lazy-initialized HashService instance.
-///
-/// This provides a convenient singleton for simple use cases, but you can also
-/// create your own HashService instances if needed.
-static HASH_SERVICE: LazyLock<HashService> = LazyLock::new(HashService::new);
-
-/// Computes the XXH3 64-bit hash of a file synchronously.
-///
-/// This function reads the file in 1MB chunks and computes the hash using
-/// a dedicated thread pool. Use this when you're already in a blocking context
-/// or when you need the hash immediately and can afford to block.
-///
-/// # Arguments
-///
-/// * `path` - Path to the file to hash
-///
-/// # Returns
-///
-/// Returns a 64-bit hash value, or an IO error if the file cannot be read.
-///
-/// # Example
-///
-/// ```no_run
-/// use std::path::Path;
-/// use beam_stream::services::hash;
-///
-/// let hash = hash::hash_file_sync(Path::new("video.mp4"))?;
-/// println!("File hash: {:016x}", hash);
-/// # Ok::<(), std::io::Error>(())
-/// ```
-pub fn hash_file_sync(path: &Path) -> io::Result<u64> {
-    HASH_SERVICE.hash_sync(path)
-}
-
-/// Computes the XXH3 64-bit hash of a file asynchronously.
-///
-/// This function offloads the blocking I/O operation to a dedicated thread pool,
-/// allowing the async runtime to continue processing other tasks while the file
-/// is being hashed. The thread pool is configured for optimal CPU-bound performance.
-///
-/// # Arguments
-///
-/// * `path` - Path to the file to hash
-///
-/// # Returns
-///
-/// Returns a 64-bit hash value, or an IO error if the file cannot be read.
-///
-/// # Example
-///
-/// ```no_run
-/// use std::path::Path;
-/// use beam_stream::services::hash;
-///
-/// # async fn example() -> Result<(), std::io::Error> {
-/// let hash = hash::hash_file(Path::new("video.mp4")).await?;
-/// println!("File hash: {:016x}", hash);
-/// # Ok(())
-/// # }
-/// ```
-pub async fn hash_file(path: impl AsRef<Path>) -> io::Result<u64> {
-    let path = path.as_ref().to_path_buf();
-    HASH_SERVICE.hash_async(path).await
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,7 +127,8 @@ mod tests {
         temp_file.write_all(b"Hello, World!").unwrap();
         temp_file.flush().unwrap();
 
-        let hash = hash_file_sync(temp_file.path()).unwrap();
+        let service = HashServiceImpl::default();
+        let hash = service.hash_sync(temp_file.path()).unwrap();
         assert!(hash > 0); // Hash should be a valid u64
     }
 
@@ -178,7 +138,11 @@ mod tests {
         temp_file.write_all(b"Hello, World!").unwrap();
         temp_file.flush().unwrap();
 
-        let hash = hash_file(temp_file.path()).await.unwrap();
+        let service = HashServiceImpl::default();
+        let hash = service
+            .hash_async(temp_file.path().to_path_buf())
+            .await
+            .unwrap();
         assert!(hash > 0);
     }
 
@@ -188,8 +152,12 @@ mod tests {
         temp_file.write_all(b"Consistent data").unwrap();
         temp_file.flush().unwrap();
 
-        let hash_sync = hash_file_sync(temp_file.path()).unwrap();
-        let hash_async = hash_file(temp_file.path()).await.unwrap();
+        let service = HashServiceImpl::default();
+        let hash_sync = service.hash_sync(temp_file.path()).unwrap();
+        let hash_async = service
+            .hash_async(temp_file.path().to_path_buf())
+            .await
+            .unwrap();
 
         assert_eq!(hash_sync, hash_async);
     }
@@ -207,11 +175,14 @@ mod tests {
             files.push(temp_file);
         }
 
+        let service = HashServiceImpl::default();
+
         // Hash all files concurrently
         let mut handles = Vec::new();
         for temp_file in &files {
             let path = temp_file.path().to_path_buf();
-            let handle = tokio::spawn(async move { hash_file(&path).await });
+            let service = service.clone(); // efficient clone
+            let handle = tokio::spawn(async move { service.hash_async(path).await });
             handles.push(handle);
         }
 
@@ -229,7 +200,7 @@ mod tests {
     #[test]
     fn test_service_initialization() {
         // Access the service to trigger initialization
-        let _ = &*HASH_SERVICE;
+        let _ = HashServiceImpl::default();
 
         // The service should be initialized with physical cores
         assert!(num_cpus::get_physical() > 0);

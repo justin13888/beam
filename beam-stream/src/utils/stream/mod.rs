@@ -19,15 +19,23 @@ pub mod config;
 pub mod hls;
 pub mod mp4;
 
-#[derive(Debug, Clone, Default)]
+use std::sync::Arc;
+
+use crate::services::hash::HashService;
+
+#[derive(Debug, Clone)]
 pub struct StreamBuilder {
     /// List of files to process into HLS stream
     files: Vec<(FileType, PathBuf)>,
+    hash_service: Arc<dyn HashService>,
 }
 
 impl StreamBuilder {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(hash_service: Arc<dyn HashService>) -> Self {
+        Self {
+            files: Vec::new(),
+            hash_service,
+        }
     }
 
     /// Add video file to merge into HLS stream
@@ -85,10 +93,11 @@ impl StreamBuilder {
             // Spawn concurrent tasks: metadata extraction and file hashing
             // Both will hold the shared lock until they complete
             let hash_path = file_path.clone();
+            let hash_service = self.hash_service.clone();
 
             let hash_task = tokio::spawn(async move {
                 trace!("Hashing file: {:?}", &hash_path);
-                crate::services::hash::hash_file(&hash_path).await
+                hash_service.hash_async(hash_path).await
             });
 
             // Process metadata extraction in current task

@@ -1,0 +1,18 @@
+[package]
+name = "migration"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "migration"
+path = "src/lib.rs"
+
+[[bin]]
+name = "migration"
+path = "src/main.rs"
+
+[dependencies]
+async-trait = { workspace = true }
+sea-orm-migration = { workspace = true }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

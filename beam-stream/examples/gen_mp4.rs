@@ -6,11 +6,13 @@
 //! Example:
 //!   cargo run --example gen_mp4 -- input.mkv output.mp4
 
+use beam_stream::services::hash::HashServiceImpl;
 use beam_stream::utils::file::FileType;
 use beam_stream::utils::stream::StreamBuilder;
 use beam_stream::utils::stream::mp4::MP4StreamGenerator;
 use eyre::Result;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Instant;
 
 #[tokio::main]
@@ -45,7 +47,8 @@ async fn main() -> Result<()> {
 
     // Build stream configuration
     println!("Building stream configuration...");
-    let mut stream_builder = StreamBuilder::new();
+    let hash_service = Arc::new(HashServiceImpl::default());
+    let mut stream_builder = StreamBuilder::new(hash_service);
     stream_builder.add_file(FileType::Video, &input_path);
     let stream_configuration = stream_builder.build().await?;
 

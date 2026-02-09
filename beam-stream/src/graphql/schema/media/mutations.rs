@@ -1,11 +1,13 @@
 use async_graphql::*;
 
+use crate::graphql::AuthGuard;
 pub struct MediaMutation;
 
 #[Object]
 impl MediaMutation {
     /// Refresh media metadata by ID
-    async fn refresh_metadata(&self, _ctx: &Context<'_>, id: ID) -> Result<bool> {
+    #[graphql(guard = "AuthGuard")]
+    async fn refresh_metadata(&self, _ctx: &Context<'_>, _id: ID) -> Result<bool> {
         todo!()
     }
 }

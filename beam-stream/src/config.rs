@@ -23,6 +23,7 @@ pub struct Config {
     pub enable_metrics: bool,
     pub video_dir: PathBuf,
     pub cache_dir: PathBuf,
+    pub database_url: String,
 }
 
 impl Config {
@@ -37,12 +38,16 @@ impl Config {
         let video_dir = parse_path_env("VIDEO_DIR", "./videos")?;
         let cache_dir = parse_path_env("CACHE_DIR", "./cache")?;
 
+        let database_url = env::var("DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://beam:password@localhost:5432/beam".to_string());
+
         Ok(Config {
             bind_address,
             server_url,
             enable_metrics,
             video_dir,
             cache_dir,
+            database_url,
         })
     }
 }

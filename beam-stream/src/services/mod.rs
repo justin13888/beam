@@ -1,6 +1,7 @@
 pub mod hash;
 pub mod library;
 pub mod metadata;
+pub mod transcode;
 
 // Re-export types for convenience
 pub use metadata::{

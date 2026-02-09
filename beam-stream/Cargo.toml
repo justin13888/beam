@@ -52,8 +52,14 @@ utoipa = { version = "5.4.0", features = [
 utoipa-axum = "0.2.0"
 utoipa-scalar = { version = "0.3.0", features = ["axum"] }
 utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
-uuid = { version = "1.18.1", features = ["v4"] }
+uuid = { workspace = true }
 xxhash-rust = { version = "0.8.15", features = ["xxh3"] }
+sea-orm = { workspace = true }
+async-trait = { workspace = true }
+serde_json = { workspace = true }
+walkdir = { workspace = true }
+regex = { workspace = true }
 
 [dev-dependencies]
 futures = "0.3.31"
+migration = { path = "../migration" }

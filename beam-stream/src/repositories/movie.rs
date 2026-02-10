@@ -9,6 +9,7 @@ use crate::models::domain::{CreateMovie, CreateMovieEntry, Movie, MovieEntry};
 /// This trait defines the data access layer for movies and their library associations.
 /// Movies can exist in multiple libraries with different editions (e.g., theatrical cut,
 /// director's cut), which are represented by `MovieEntry` records.
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait MovieRepository: Send + Sync + std::fmt::Debug {
     /// Finds a movie by its title.

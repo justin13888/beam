@@ -9,6 +9,7 @@ use crate::models::domain::{CreateEpisode, Episode, Season, Show};
 /// This trait defines the data access layer for TV shows, seasons, and episodes.
 /// It handles the hierarchical relationship: Show → Season → Episode, and manages
 /// library associations for shows.
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait ShowRepository: Send + Sync + std::fmt::Debug {
     /// Finds a TV show by its title.

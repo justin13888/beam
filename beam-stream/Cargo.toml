@@ -63,3 +63,4 @@ regex = { workspace = true }
 [dev-dependencies]
 futures = "0.3.31"
 migration = { path = "../migration" }
+mockall = "0.14.0"

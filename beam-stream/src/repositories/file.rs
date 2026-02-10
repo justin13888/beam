@@ -8,6 +8,7 @@ use crate::models::domain::{CreateMediaFile, MediaFile};
 /// This trait defines the data access layer for media files (videos) within libraries.
 /// It handles file metadata storage including paths, hashes, sizes, and associations
 /// with movies or TV episodes.
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait FileRepository: Send + Sync + std::fmt::Debug {
     /// Finds a media file by its filesystem path.

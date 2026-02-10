@@ -25,6 +25,7 @@ impl Default for HashConfig {
 }
 
 /// A service that manages file hashing operations.
+#[cfg_attr(test, mockall::automock)]
 #[async_trait::async_trait]
 pub trait HashService: Send + Sync + std::fmt::Debug {
     /// Computes the XXH3 64-bit hash of a file synchronously.

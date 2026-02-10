@@ -8,6 +8,7 @@ use crate::models::domain::{CreateMediaStream, MediaStream};
 ///
 /// This trait defines the data access layer for media streams (video, audio, subtitle tracks)
 /// within media files. Streams represent the individual tracks contained in a media container.
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait MediaStreamRepository: Send + Sync + std::fmt::Debug {
     /// Inserts multiple media streams for a file in a single operation.

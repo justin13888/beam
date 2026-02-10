@@ -9,6 +9,7 @@ use walkdir::WalkDir;
 
 use crate::models::Library;
 use crate::services::hash::HashService;
+use crate::services::media_info::MediaInfoService;
 use crate::utils::metadata::{StreamMetadata, VideoFileMetadata};
 
 use std::path::PathBuf;
@@ -44,9 +45,11 @@ pub struct LocalLibraryService {
     stream_repo: Arc<dyn crate::repositories::MediaStreamRepository>,
     config: LibraryConfig,
     hash_service: Arc<dyn HashService>,
+    media_info_service: Arc<dyn MediaInfoService>,
 }
 
 impl LocalLibraryService {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         library_repo: Arc<dyn crate::repositories::LibraryRepository>,
         file_repo: Arc<dyn crate::repositories::FileRepository>,
@@ -55,6 +58,7 @@ impl LocalLibraryService {
         stream_repo: Arc<dyn crate::repositories::MediaStreamRepository>,
         config: LibraryConfig,
         hash_service: Arc<dyn HashService>,
+        media_info_service: Arc<dyn MediaInfoService>,
     ) -> Self {
         LocalLibraryService {
             library_repo,
@@ -64,6 +68,7 @@ impl LocalLibraryService {
             stream_repo,
             config,
             hash_service,
+            media_info_service,
         }
     }
 
@@ -135,6 +140,154 @@ impl LocalLibraryService {
 
         let count = self.stream_repo.insert_streams(streams_to_insert).await?;
         Ok(count as u32)
+    }
+
+    /// Process a single file to add it to the library
+    async fn process_file(
+        &self,
+        path: &std::path::Path,
+        lib_uuid: Uuid,
+    ) -> Result<bool, LibraryError> {
+        use crate::models::domain::{
+            CreateEpisode, CreateMediaFile, CreateMovie, CreateMovieEntry, MediaFileContent,
+        };
+        use std::time::Duration;
+
+        // Check if already indexed
+        if self
+            .file_repo
+            .find_by_path(path.to_string_lossy().as_ref())
+            .await?
+            .is_some()
+        {
+            return Ok(false);
+        }
+
+        info!("Processing file: {}", path.display());
+
+        // Extract Metadata
+        let metadata = self
+            .media_info_service
+            .get_video_metadata(path)
+            .await
+            .map_err(|e| {
+                warn!("Failed to extract metadata for {}: {}", path.display(), e);
+                LibraryError::PathNotFound(format!("Metadata extraction failed: {}", e)) // TODO: Better error
+            })?;
+
+        // Calculate Hash
+        let hash_value = self
+            .hash_service
+            .hash_async(path.to_path_buf())
+            .await
+            .map_err(|e| {
+                error!("Failed to hash file {}: {}", path.display(), e);
+                LibraryError::PathNotFound(format!("Hash failed: {}", e)) // TODO: Better error
+            })?;
+
+        // Regex for detecting SxxExx pattern
+        let episode_regex = Regex::new(r"(?i)S(\d+)E(\d+)").unwrap();
+
+        // Determine file type and content
+        let file_stem = path
+            .file_stem()
+            .map(|s| s.to_string_lossy())
+            .unwrap_or_default();
+
+        let content = if let Some(captures) = episode_regex.captures(&file_stem) {
+            // IT IS AN EPISODE
+            let season_num: u32 = captures[1].parse().unwrap_or(1);
+            let episode_num: i32 = captures[2].parse().unwrap_or(1);
+
+            // Show title guess: Parent directory name
+            let show_title = path
+                .parent()
+                .and_then(|p| p.file_name())
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "Unknown Show".to_string());
+
+            // Find or create show using repository
+            let show = match self.show_repo.find_by_title(&show_title).await? {
+                Some(s) => s,
+                None => self.show_repo.create(show_title.clone()).await?,
+            };
+
+            // Ensure library-show association exists
+            self.show_repo
+                .ensure_library_association(lib_uuid, show.id)
+                .await?;
+
+            // Find or create season
+            let season = self
+                .show_repo
+                .find_or_create_season(show.id, season_num)
+                .await?;
+
+            // Create episode
+            let create_episode = CreateEpisode {
+                season_id: season.id,
+                episode_number: episode_num as u32,
+                title: file_stem.to_string(),
+                runtime: Some(Duration::from_secs_f64(metadata.duration_seconds())),
+            };
+            let episode = self.show_repo.create_episode(create_episode).await?;
+
+            MediaFileContent::Episode {
+                episode_id: episode.id,
+            }
+        } else {
+            // IT IS A MOVIE
+            let movie_title = file_stem.to_string();
+
+            // Find or create movie using repository
+            let movie = match self.movie_repo.find_by_title(&movie_title).await? {
+                Some(m) => m,
+                None => {
+                    let create_movie = CreateMovie {
+                        title: movie_title,
+                        runtime: Some(Duration::from_secs_f64(metadata.duration_seconds())),
+                    };
+                    self.movie_repo.create(create_movie).await?
+                }
+            };
+
+            // Ensure library-movie association exists
+            self.movie_repo
+                .ensure_library_association(lib_uuid, movie.id)
+                .await?;
+
+            // Create movie entry
+            let create_entry = CreateMovieEntry {
+                library_id: lib_uuid,
+                movie_id: movie.id,
+                edition: None,
+                is_primary: true,
+            };
+            let entry = self.movie_repo.create_entry(create_entry).await?;
+
+            MediaFileContent::Movie {
+                movie_entry_id: entry.id,
+            }
+        };
+
+        // Create media file using repository
+        let create_file = CreateMediaFile {
+            library_id: lib_uuid,
+            path: path.to_path_buf(),
+            hash: hash_value,
+            size_bytes: metadata.file_size,
+            mime_type: Some(format!("video/{}", metadata.format_name)),
+            duration: Some(Duration::from_secs_f64(metadata.duration_seconds())),
+            container_format: Some(metadata.format_name.clone()),
+            content,
+        };
+
+        let file = self.file_repo.create(create_file).await?;
+
+        // Extract and insert media streams
+        self.insert_media_streams(file.id, &metadata).await?;
+
+        Ok(true)
     }
 }
 
@@ -235,138 +388,11 @@ impl LibraryService for LocalLibraryService {
                 continue;
             }
 
-            // Check if already indexed
-            if self
-                .file_repo
-                .find_by_path(path.to_string_lossy().as_ref())
-                .await?
-                .is_some()
-            {
-                // file already parsed, skipping re-scan for now
-                // TODO: Check if file has changed (modified time, size)
-                continue;
+            match self.process_file(path, lib_uuid).await {
+                Ok(true) => added_count += 1,
+                Ok(false) => {}
+                Err(e) => error!("Failed to process file {}: {}", path.display(), e),
             }
-
-            info!("Processing file: {}", path.display());
-
-            // Extract Metadata
-            let metadata = match VideoFileMetadata::from_path(path) {
-                Ok(m) => m,
-                Err(e) => {
-                    warn!("Failed to extract metadata for {}: {}", path.display(), e);
-                    continue;
-                }
-            };
-
-            // Calculate Hash
-            let hash_value = match self.hash_service.hash_async(path.to_path_buf()).await {
-                Ok(h) => h,
-                Err(e) => {
-                    error!("Failed to hash file {}: {}", path.display(), e);
-                    continue;
-                }
-            };
-
-            // Determine file type and content
-            let file_stem = path
-                .file_stem()
-                .map(|s| s.to_string_lossy())
-                .unwrap_or_default();
-
-            let content = if let Some(captures) = episode_regex.captures(&file_stem) {
-                // IT IS AN EPISODE
-                let season_num: u32 = captures[1].parse().unwrap_or(1);
-                let episode_num: i32 = captures[2].parse().unwrap_or(1);
-
-                // Show title guess: Parent directory name
-                let show_title = path
-                    .parent()
-                    .and_then(|p| p.file_name())
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| "Unknown Show".to_string());
-
-                // Find or create show using repository
-                let show = match self.show_repo.find_by_title(&show_title).await? {
-                    Some(s) => s,
-                    None => self.show_repo.create(show_title.clone()).await?,
-                };
-
-                // Ensure library-show association exists
-                self.show_repo
-                    .ensure_library_association(lib_uuid, show.id)
-                    .await?;
-
-                // Find or create season
-                let season = self
-                    .show_repo
-                    .find_or_create_season(show.id, season_num)
-                    .await?;
-
-                // Create episode
-                let create_episode = CreateEpisode {
-                    season_id: season.id,
-                    episode_number: episode_num as u32,
-                    title: file_stem.to_string(),
-                    runtime: Some(Duration::from_secs_f64(metadata.duration_seconds())),
-                };
-                let episode = self.show_repo.create_episode(create_episode).await?;
-
-                MediaFileContent::Episode {
-                    episode_id: episode.id,
-                }
-            } else {
-                // IT IS A MOVIE
-                let movie_title = file_stem.to_string();
-
-                // Find or create movie using repository
-                let movie = match self.movie_repo.find_by_title(&movie_title).await? {
-                    Some(m) => m,
-                    None => {
-                        let create_movie = CreateMovie {
-                            title: movie_title,
-                            runtime: Some(Duration::from_secs_f64(metadata.duration_seconds())),
-                        };
-                        self.movie_repo.create(create_movie).await?
-                    }
-                };
-
-                // Ensure library-movie association exists
-                self.movie_repo
-                    .ensure_library_association(lib_uuid, movie.id)
-                    .await?;
-
-                // Create movie entry
-                let create_entry = CreateMovieEntry {
-                    library_id: lib_uuid,
-                    movie_id: movie.id,
-                    edition: None,
-                    is_primary: true,
-                };
-                let entry = self.movie_repo.create_entry(create_entry).await?;
-
-                MediaFileContent::Movie {
-                    movie_entry_id: entry.id,
-                }
-            };
-
-            // Create media file using repository
-            let create_file = CreateMediaFile {
-                library_id: lib_uuid,
-                path: path.to_path_buf(),
-                hash: hash_value,
-                size_bytes: metadata.file_size,
-                mime_type: Some(format!("video/{}", metadata.format_name)),
-                duration: Some(Duration::from_secs_f64(metadata.duration_seconds())),
-                container_format: Some(metadata.format_name.clone()),
-                content,
-            };
-
-            let file = self.file_repo.create(create_file).await?;
-
-            // Extract and insert media streams
-            self.insert_media_streams(file.id, &metadata).await?;
-
-            added_count += 1;
         }
 
         Ok(added_count)
@@ -387,3 +413,7 @@ pub enum LibraryError {
     #[error("Path not found: {0}")]
     PathNotFound(String),
 }
+
+#[cfg(test)]
+#[path = "library_tests.rs"]
+mod library_tests;

@@ -10,6 +10,7 @@ use crate::models::domain::{CreateLibrary, Library};
 /// methods to create, retrieve, and query library metadata. All methods
 /// return domain models rather than database entities, maintaining clean
 /// separation between the data layer and business logic.
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait LibraryRepository: Send + Sync + std::fmt::Debug {
     /// Retrieves all libraries from the database.

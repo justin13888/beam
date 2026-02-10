@@ -1,5 +1,6 @@
 pub mod hash;
 pub mod library;
+pub mod media_info;
 pub mod metadata;
 pub mod transcode;
 

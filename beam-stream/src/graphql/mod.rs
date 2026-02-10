@@ -83,8 +83,11 @@ impl AppServices {
         ));
 
         let hash_service = Arc::new(LocalHashService::new(hash_config));
+        let media_info_service =
+            Arc::new(crate::services::media_info::LocalMediaInfoService::default());
         let transcode_service = Arc::new(LocalTranscodeService::new(
-            hash_service.clone() as Arc<dyn HashService>
+            hash_service.clone(),
+            media_info_service.clone(),
         ));
 
         Self {
@@ -96,7 +99,8 @@ impl AppServices {
                 show_repo,
                 stream_repo,
                 library_config,
-                hash_service.clone() as Arc<dyn HashService>,
+                hash_service.clone(),
+                media_info_service,
             )),
             metadata: Arc::new(StubMetadataService::new(metadata_config)),
             transcode: transcode_service,

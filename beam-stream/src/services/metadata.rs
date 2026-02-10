@@ -320,3 +320,6 @@ pub struct PageInfo {
     /// Cursor of the last edge
     pub end_cursor: Option<String>,
 }
+#[cfg(test)]
+#[path = "metadata_tests.rs"]
+mod metadata_tests;

@@ -10,7 +10,7 @@ use crate::utils::{
     codec::{OutputAudioCodec, OutputSubtitleCodec, OutputVideoCodec},
     file::FileType,
     hash::XXH3Hash,
-    metadata::{MetadataError, StreamMetadata, VideoFileMetadata},
+    metadata::{MetadataError, StreamMetadata},
     stream::config::{AudioStream, OutputStream, SubtitleStream, VideoStream},
 };
 use config::StreamConfiguration;
@@ -22,19 +22,25 @@ pub mod mp4;
 use std::sync::Arc;
 
 use crate::services::hash::HashService;
+use crate::services::media_info::MediaInfoService;
 
 #[derive(Debug, Clone)]
 pub struct StreamBuilder {
     /// List of files to process into HLS stream
     files: Vec<(FileType, PathBuf)>,
     hash_service: Arc<dyn HashService>,
+    media_info_service: Arc<dyn MediaInfoService>,
 }
 
 impl StreamBuilder {
-    pub fn new(hash_service: Arc<dyn HashService>) -> Self {
+    pub fn new(
+        hash_service: Arc<dyn HashService>,
+        media_info_service: Arc<dyn MediaInfoService>,
+    ) -> Self {
         Self {
             files: Vec::new(),
             hash_service,
+            media_info_service,
         }
     }
 
@@ -94,6 +100,7 @@ impl StreamBuilder {
             // Both will hold the shared lock until they complete
             let hash_path = file_path.clone();
             let hash_service = self.hash_service.clone();
+            let media_info_service = self.media_info_service.clone();
 
             let hash_task = tokio::spawn(async move {
                 trace!("Hashing file: {:?}", &hash_path);
@@ -106,7 +113,8 @@ impl StreamBuilder {
                     FileType::Video => {
                         trace!("Extracting video metadata: {:?}", &file_path);
                         // Process video file
-                        let file_metadata = VideoFileMetadata::from_path(&file_path)?;
+                        let file_metadata =
+                            media_info_service.get_video_metadata(&file_path).await?;
                         trace!(
                             "Extracted video metadata for file {:?}: {:#?}",
                             &file_path, &file_metadata

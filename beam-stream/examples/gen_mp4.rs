@@ -6,7 +6,8 @@
 //! Example:
 //!   cargo run --example gen_mp4 -- input.mkv output.mp4
 
-use beam_stream::services::hash::HashServiceImpl;
+use beam_stream::services::hash::LocalHashService;
+use beam_stream::services::media_info::LocalMediaInfoService;
 use beam_stream::utils::file::FileType;
 use beam_stream::utils::stream::StreamBuilder;
 use beam_stream::utils::stream::mp4::MP4StreamGenerator;
@@ -47,8 +48,9 @@ async fn main() -> Result<()> {
 
     // Build stream configuration
     println!("Building stream configuration...");
-    let hash_service = Arc::new(HashServiceImpl::default());
-    let mut stream_builder = StreamBuilder::new(hash_service);
+    let hash_service = Arc::new(LocalHashService::default());
+    let media_info_service = Arc::new(LocalMediaInfoService::default());
+    let mut stream_builder = StreamBuilder::new(hash_service, media_info_service);
     stream_builder.add_file(FileType::Video, &input_path);
     let stream_configuration = stream_builder.build().await?;
 

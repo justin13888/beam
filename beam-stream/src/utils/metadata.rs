@@ -390,6 +390,7 @@ pub struct VideoFileMetadata {
 }
 
 impl VideoFileMetadata {
+    // TODO: See if this should be async anyways vv
     /// From file path
     pub fn from_path(file_path: &Path) -> Result<Self, MetadataError> {
         trace!("Opening file for metadata extraction: {:?}", file_path);
@@ -691,4 +692,6 @@ pub enum MetadataError {
     FfmpegError(#[from] ffmpeg::Error),
     #[error("Invalid metadata encountered: {0}")]
     InvalidMetadata(String),
+    #[error("Unknown error: {0}")]
+    UnknownError(String),
 }

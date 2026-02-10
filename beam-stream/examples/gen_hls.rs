@@ -1,6 +1,6 @@
 //! Example code to generate a HLS media playlist (to a hypothetical server) from a video file
 
-use beam_stream::services::hash::HashServiceImpl;
+use beam_stream::services::{hash::LocalHashService, media_info::LocalMediaInfoService};
 use beam_stream::utils::file::FileType;
 use beam_stream::utils::metadata::VideoFileMetadata;
 use beam_stream::utils::stream::StreamBuilder;
@@ -35,8 +35,9 @@ async fn main() -> Result<()> {
     WRITE_OPT_FLOAT_PRECISION.store(5, Ordering::Relaxed);
 
     // === Generate HLS playlist in directory ===
-    let hash_service = Arc::new(HashServiceImpl::default());
-    let mut stream_builder = StreamBuilder::new(hash_service);
+    let hash_service = Arc::new(LocalHashService::default());
+    let media_info_service = Arc::new(LocalMediaInfoService::default());
+    let mut stream_builder = StreamBuilder::new(hash_service, media_info_service);
     stream_builder.add_file(FileType::Video, &file_path);
     let stream_configuration = stream_builder.build().await?;
     println!("Stream configuration: {:#?}", stream_configuration);

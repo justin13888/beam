@@ -20,17 +20,24 @@ pub trait TranscodeService: Send + Sync + std::fmt::Debug {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 }
 
+use crate::services::media_info::MediaInfoService;
+
 #[derive(Debug, Clone)]
 pub struct LocalTranscodeService {
     hash_service: Arc<dyn HashService>,
+    media_info_service: Arc<dyn MediaInfoService>,
     // Distributed locks would be better, but local map works for single instance
     locks: Arc<Mutex<HashMap<String, Arc<Mutex<()>>>>>,
 }
 
 impl LocalTranscodeService {
-    pub fn new(hash_service: Arc<dyn HashService>) -> Self {
+    pub fn new(
+        hash_service: Arc<dyn HashService>,
+        media_info_service: Arc<dyn MediaInfoService>,
+    ) -> Self {
         Self {
             hash_service,
+            media_info_service,
             locks: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -71,7 +78,8 @@ impl TranscodeService for LocalTranscodeService {
         ffmpeg_next::init()?;
 
         // Build stream configuration
-        let mut stream_builder = StreamBuilder::new(self.hash_service.clone());
+        let mut stream_builder =
+            StreamBuilder::new(self.hash_service.clone(), self.media_info_service.clone());
         stream_builder.add_file(FileType::Video, source_path);
         let stream_configuration = stream_builder.build().await?;
 
@@ -85,3 +93,7 @@ impl TranscodeService for LocalTranscodeService {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "transcode_tests.rs"]
+mod transcode_tests;

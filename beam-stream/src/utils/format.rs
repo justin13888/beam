@@ -177,7 +177,8 @@ impl From<ffmpeg::channel_layout::ChannelLayout> for ChannelLayout {
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Debug, Hash)]
+/// Represents [ffmpeg::format::stream::Disposition]
+#[derive(Eq, PartialEq, Copy, Clone, Debug, Hash, Default)]
 pub struct Disposition {
     flags: i32,
 }
@@ -185,22 +186,22 @@ pub struct Disposition {
 impl Disposition {
     /// Check if this stream is the default stream
     pub fn is_default(&self) -> bool {
-        (self.flags & ffmpeg::format::stream::Disposition::DEFAULT.bits() as i32) != 0
+        (self.flags & ffmpeg::format::stream::Disposition::DEFAULT.bits()) != 0
     }
 
     /// Check if this stream is forced
     pub fn is_forced(&self) -> bool {
-        (self.flags & ffmpeg::format::stream::Disposition::FORCED.bits() as i32) != 0
+        (self.flags & ffmpeg::format::stream::Disposition::FORCED.bits()) != 0
     }
 
     /// Check if this stream contains hearing impaired content
     pub fn is_hearing_impaired(&self) -> bool {
-        (self.flags & ffmpeg::format::stream::Disposition::HEARING_IMPAIRED.bits() as i32) != 0
+        (self.flags & ffmpeg::format::stream::Disposition::HEARING_IMPAIRED.bits()) != 0
     }
 
     /// Check if this stream contains visual impaired content
     pub fn is_visual_impaired(&self) -> bool {
-        (self.flags & ffmpeg::format::stream::Disposition::VISUAL_IMPAIRED.bits() as i32) != 0
+        (self.flags & ffmpeg::format::stream::Disposition::VISUAL_IMPAIRED.bits()) != 0
     }
 
     /// Get a human-readable description of the disposition flags

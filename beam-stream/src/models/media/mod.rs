@@ -21,6 +21,15 @@ pub enum MediaMetadata {
     Movie(MovieMetadata),
 }
 
+impl MediaMetadata {
+    pub fn title(&self) -> &Title {
+        match self {
+            MediaMetadata::Show(s) => &s.title,
+            MediaMetadata::Movie(m) => &m.title,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, ToSchema, SimpleObject)]
 pub struct Title {
     /// Original title

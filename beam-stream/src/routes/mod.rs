@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod health;
 pub mod stream;
 pub mod upload;
@@ -37,6 +38,7 @@ use beam_stream::models::*;
         ShowDates,
         EpisodeMetadata,
         MovieMetadata,
+        StreamTokenResponse,
     )),
     tags(
         (name = "health", description = "Health check endpoints"),
@@ -51,5 +53,5 @@ pub fn create_router() -> OpenApiRouter {
     OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(health_check))
         // .routes(routes!(upload_file))
-        .routes(routes!(stream_mp4))
+        .routes(routes!(stream_mp4, get_stream_token))
 }

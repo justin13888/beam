@@ -1,23 +1,77 @@
-use std::path::PathBuf;
-
 use axum::body::Body;
-use axum::extract::{Extension, Path};
-use axum::http::HeaderMap;
-use axum::http::StatusCode;
+use axum::extract::{Extension, Json, Path, Query};
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use beam_stream::graphql::SharedAppState;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use tokio::fs::File;
 use tracing::{debug, error, trace};
+use utoipa::{IntoParams, ToSchema};
+
+#[derive(Debug, Deserialize, IntoParams)]
+pub struct StreamParams {
+    pub token: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct StreamTokenResponse {
+    pub token: String,
+}
+
+/// Get a presigned token for streaming
+#[utoipa::path(
+    post,
+    path = "/stream/{id}/token",
+    params(
+        ("id" = String, Path, description = "Stream ID")
+    ),
+    responses(
+        (status = 200, description = "Stream token", body = StreamTokenResponse),
+        (status = 401, description = "Unauthorized", body = super::ErrorResponse),
+        (status = 404, description = "Stream not found", body = super::ErrorResponse)
+    ),
+    tag = "stream"
+)]
+pub async fn get_stream_token(
+    Path(id): Path<String>,
+    headers: HeaderMap,
+    Extension(state): Extension<SharedAppState>,
+) -> Result<Json<StreamTokenResponse>, StatusCode> {
+    // Validate user auth
+    let user_id = if let Some(auth_header) = headers.get("Authorization")
+        && let Ok(auth_str) = auth_header.to_str()
+        && auth_str.starts_with("Bearer ")
+    {
+        let token = &auth_str[7..];
+        match state.services.auth.verify_token(token).await {
+            Ok(user) => user.user_id,
+            Err(_) => return Err(StatusCode::UNAUTHORIZED),
+        }
+    } else {
+        return Err(StatusCode::UNAUTHORIZED);
+    };
+
+    // Create stream token
+    // TODO: Verify stream exists
+
+    match state.services.auth.create_stream_token(&user_id, &id) {
+        Ok(token) => Ok(Json(StreamTokenResponse { token })),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
 
 /// Stream via MP4 - serves AVFoundation-friendly fragmented MP4
 #[utoipa::path(
     get,
     path = "/stream/mp4/{id}",
     params(
-        ("id" = String, Path, description = "Stream ID")
+        ("id" = String, Path, description = "Stream ID"),
+        ("token" = String, Query, description = "Presigned stream token")
     ),
     responses(
         (status = 200, description = "Media stream", content_type = "video/mp4"),
+        (status = 401, description = "Invalid or expired token", body = super::ErrorResponse),
         (status = 404, description = "File not found", body = super::ErrorResponse),
         (status = 416, description = "Range not satisfiable", body = super::ErrorResponse),
         (status = 500, description = "Internal server error", body = super::ErrorResponse)
@@ -27,9 +81,20 @@ use tracing::{debug, error, trace};
 #[tracing::instrument(skip(state))]
 pub async fn stream_mp4(
     Path(id): Path<String>,
+    Query(params): Query<StreamParams>,
     headers: HeaderMap,
     Extension(state): Extension<SharedAppState>,
 ) -> Result<Response, StatusCode> {
+    // Validate stream token
+    match state.services.auth.verify_stream_token(&params.token) {
+        Ok(stream_id) => {
+            if stream_id != id {
+                return Err(StatusCode::UNAUTHORIZED);
+            }
+        }
+        Err(_) => return Err(StatusCode::UNAUTHORIZED),
+    }
+
     debug!("Streaming media with ID: {}", id);
 
     // TODO: Map ID to actual video file path
@@ -41,13 +106,6 @@ pub async fn stream_mp4(
         error!("Source video file not found: {:?}", source_video_path);
         return Err(StatusCode::NOT_FOUND);
     }
-
-    // // Ensure cache directory exists
-    // // don't need this because cache dir is created at startup
-    // if let Some(parent) = cache_mp4_path.parent() && let Err(err) = tokio::fs::create_dir_all(parent).await {
-    //         error!("Failed to create cache directory: {:?}", err);
-    //         return Err(StatusCode::INTERNAL_SERVER_ERROR);
-    // }
 
     // Generate MP4 if it doesn't exist or is outdated
     if !cache_mp4_path.exists() {

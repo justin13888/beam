@@ -15,9 +15,11 @@ use crate::{
         media::{MediaMutation, MediaQuery},
     },
     services::{
+        auth::{AuthService, LocalAuthService},
         hash::{HashConfig, HashService, LocalHashService},
         library::{LibraryConfig, LibraryService, LocalLibraryService},
         metadata::{MetadataConfig, MetadataService, StubMetadataService},
+        session_store::{RedisSessionStore, SessionStore},
         transcode::{LocalTranscodeService, TranscodeService},
     },
 };
@@ -57,6 +59,8 @@ impl AppContext {
 
 #[derive(Debug)]
 pub struct AppServices {
+    pub auth: Arc<dyn AuthService>,
+    pub session_store: Arc<dyn SessionStore>,
     pub hash: Arc<dyn HashService>,
     pub library: Arc<dyn LibraryService>,
     pub metadata: Arc<dyn MetadataService>,
@@ -64,7 +68,7 @@ pub struct AppServices {
 }
 
 impl AppServices {
-    pub fn new(config: &Config, db: DatabaseConnection) -> Self {
+    pub async fn new(config: &Config, db: DatabaseConnection) -> Self {
         let hash_config = HashConfig::default();
         let library_config = LibraryConfig {
             video_dir: config.video_dir.clone(),
@@ -81,6 +85,7 @@ impl AppServices {
         let stream_repo = Arc::new(crate::repositories::SqlMediaStreamRepository::new(
             db.clone(),
         ));
+        let user_repo = Arc::new(crate::repositories::SqlUserRepository::new(db.clone()));
 
         let hash_service = Arc::new(LocalHashService::new(hash_config));
         let media_info_service =
@@ -90,7 +95,22 @@ impl AppServices {
             media_info_service.clone(),
         ));
 
+        // Initialize Redis session store
+        let session_store = Arc::new(
+            RedisSessionStore::new(&config.redis_url)
+                .await
+                .expect("Failed to connect to Redis"),
+        );
+
+        let auth_service = Arc::new(LocalAuthService::new(
+            user_repo,
+            session_store.clone(),
+            config.clone(),
+        ));
+
         Self {
+            auth: auth_service,
+            session_store,
             hash: hash_service.clone() as Arc<dyn HashService>,
             library: Arc::new(LocalLibraryService::new(
                 library_repo,
@@ -110,14 +130,14 @@ impl AppServices {
 
 pub type AppSchema = Schema<QueryRoot, MutationRoot, EmptySubscription>;
 
-pub fn create_schema(config: &Config, db: DatabaseConnection) -> AppSchema {
+pub async fn create_schema(config: &Config, db: DatabaseConnection) -> (AppSchema, SharedAppState) {
     let app_state = AppState {
         config: config.clone(),
-        services: AppServices::new(config, db),
+        services: AppServices::new(config, db).await,
     };
     let shared_app_state: SharedAppState = Arc::new(app_state);
 
-    Schema::build(
+    let schema = Schema::build(
         QueryRoot {
             library: LibraryQuery,
             media: MediaQuery,
@@ -128,6 +148,8 @@ pub fn create_schema(config: &Config, db: DatabaseConnection) -> AppSchema {
         },
         EmptySubscription,
     )
-    .data(shared_app_state)
-    .finish()
+    .data(shared_app_state.clone())
+    .finish();
+
+    (schema, shared_app_state)
 }

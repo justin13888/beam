@@ -24,6 +24,8 @@ pub struct Config {
     pub video_dir: PathBuf,
     pub cache_dir: PathBuf,
     pub database_url: String,
+    pub jwt_secret: String,
+    pub redis_url: String,
 }
 
 impl Config {
@@ -40,6 +42,10 @@ impl Config {
 
         let database_url = env::var("DATABASE_URL")
             .unwrap_or_else(|_| "postgres://beam:password@localhost:5432/beam".to_string());
+        let jwt_secret = env::var("JWT_SECRET")
+            .map_err(|_| ConfigError::MissingEnvVar("JWT_SECRET".to_string()))?;
+        let redis_url =
+            env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
 
         Ok(Config {
             bind_address,
@@ -48,6 +54,8 @@ impl Config {
             video_dir,
             cache_dir,
             database_url,
+            jwt_secret,
+            redis_url,
         })
     }
 }

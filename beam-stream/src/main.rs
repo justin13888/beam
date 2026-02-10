@@ -16,7 +16,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 use utoipa_scalar::{Scalar, Servable};
 
-use beam_stream::graphql::{AppSchema, UserContext, create_schema};
+use beam_stream::graphql::{AppSchema, SharedAppState, UserContext, create_schema};
 use beam_stream::{config::Config, graphql::AppContext};
 use routes::create_router;
 
@@ -62,12 +62,15 @@ async fn main() -> Result<()> {
     info!("Connected to database");
 
     let (router, api) = create_router().split_for_parts();
-    let router = router.merge(Scalar::with_url("/openapi", api));
+    let router = router
+        .merge(Scalar::with_url("/openapi", api))
+        .nest("/auth", routes::auth::auth_routes());
 
-    let schema = create_schema(&config, db);
+    let (schema, state) = create_schema(&config, db).await;
     let graphql_router = Router::new()
         .route("/graphql", get(graphiql).post(graphql_handler))
-        .layer(Extension(schema));
+        .layer(Extension(schema))
+        .layer(Extension(state));
 
     let app = router
         .merge(graphql_router)
@@ -110,20 +113,31 @@ async fn graphiql() -> impl IntoResponse {
 async fn graphql_handler(
     headers: HeaderMap,
     Extension(schema): Extension<AppSchema>,
+    Extension(state): Extension<SharedAppState>,
     req: GraphQLRequest,
 ) -> GraphQLResponse {
     let mut req = req.into_inner();
-
     let mut user_context = None;
 
-    // TODO: FIX THIS BOGUS
-    if let Some(user_id) = headers.get("X-User-Id")
-        && let Ok(user_id_str) = user_id.to_str()
+    if let Some(auth_header) = headers.get("Authorization")
+        && let Ok(auth_str) = auth_header.to_str()
+        && auth_str.starts_with("Bearer ")
     {
-        user_context = Some(UserContext {
-            user_id: user_id_str.to_string(),
-        });
+        let token = &auth_str[7..];
+
+        // Get AuthService from state
+        match state.services.auth.verify_token(token).await {
+            Ok(user) => {
+                user_context = Some(UserContext {
+                    user_id: user.user_id,
+                });
+            }
+            Err(e) => {
+                tracing::warn!("Failed to verify token: {}", e);
+            }
+        }
     }
+
     let app_context = AppContext::new(user_context);
     req = req.data(app_context);
 

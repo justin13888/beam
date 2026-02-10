@@ -16,6 +16,7 @@ pub mod season;
 pub mod show;
 pub mod show_genre;
 pub mod stream_cache;
+pub mod user;
 
 pub use episode::Entity as Episode;
 pub use files::Entity as Files;
@@ -31,3 +32,4 @@ pub use season::Entity as Season;
 pub use show::Entity as Show;
 pub use show_genre::Entity as ShowGenre;
 pub use stream_cache::Entity as StreamCache;
+pub use user::Entity as User;

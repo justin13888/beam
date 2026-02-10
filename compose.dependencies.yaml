@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
       POSTGRES_DB: ${POSTGRES_DB:-beam}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres:/var/lib/postgresql
     ports:
       - "${POSTGRES_HOST_PORT:-5432}:5432"
     healthcheck:
@@ -17,4 +17,4 @@ services:
       start_period: 10s
 
 volumes:
-  pgdata:
+  postgres:

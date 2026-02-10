@@ -96,6 +96,7 @@ FROM docker.io/debian:trixie-slim
 # Install minimal runtime dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+    curl \
     ca-certificates \
     libx264-* libx265-* libvpx* \
     libopus0 libass9 libfreetype6 libfontconfig1 \

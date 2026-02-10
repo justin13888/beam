@@ -90,10 +90,10 @@ For production deployments, we recommend reviewing all configurations in `.env` 
 
 See individual README files for each component.
 
-To spin up entire stack with Docker Compose for testing, run:
+To spin up entire dependency stack with Docker Compose for testing, run:
 
 ```bash
-podman compose up
+podman compose -f compose.dependencies.yaml up
 ```
 
 ## License

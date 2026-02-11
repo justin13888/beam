@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::config::ServerConfig;
 use crate::models::domain::{CreateUser, User};
 use crate::repositories::user::UserRepository;
 use crate::services::session_store::{SessionData, SessionStore};
@@ -108,14 +108,14 @@ pub trait AuthService: Send + Sync + std::fmt::Debug {
 pub struct LocalAuthService {
     user_repo: Arc<dyn UserRepository>,
     session_store: Arc<dyn SessionStore>,
-    config: Config,
+    config: ServerConfig,
 }
 
 impl LocalAuthService {
     pub fn new(
         user_repo: Arc<dyn UserRepository>,
         session_store: Arc<dyn SessionStore>,
-        config: Config,
+        config: ServerConfig,
     ) -> Self {
         Self {
             user_repo,

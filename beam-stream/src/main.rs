@@ -7,7 +7,7 @@ use salvo::prelude::*;
 use tracing::info;
 
 use beam_stream::graphql::{AppSchema, SharedAppState, UserContext, create_schema};
-use beam_stream::{config::Config, graphql::AppContext};
+use beam_stream::{config::ServerConfig, graphql::AppContext};
 use routes::create_router;
 
 mod routes;
@@ -26,7 +26,7 @@ async fn main() -> Result<()> {
     info!("Starting beam-stream...");
 
     // Load configuration
-    let config = Config::from_env().map_err(|e| eyre!(e))?;
+    let config = ServerConfig::load_and_validate().map_err(|e| eyre!(e))?;
 
     info!("Configuration loaded: {:?}", config);
 

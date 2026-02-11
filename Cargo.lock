@@ -407,6 +407,7 @@ dependencies = [
  "bytes",
  "chrono",
  "color-eyre",
+ "confique",
  "dotenvy",
  "eyre",
  "ffmpeg-next",
@@ -786,6 +787,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
 dependencies = [
  "crossbeam-utils",
+]
+
+[[package]]
+name = "confique"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06b4f5ec222421e22bb0a8cbaa36b1d2b50fd45cdd30c915ded34108da78b29f"
+dependencies = [
+ "confique-macro",
+ "serde",
+]
+
+[[package]]
+name = "confique-macro"
+version = "0.0.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4d1754680cd218e7bcb4c960cc9bae3444b5197d64563dccccfdf83cab9e1a7"
+dependencies = [
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
 ]
 
 [[package]]

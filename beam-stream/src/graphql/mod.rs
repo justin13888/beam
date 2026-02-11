@@ -9,7 +9,7 @@ use schema::*;
 use sea_orm::DatabaseConnection;
 
 use crate::{
-    config::Config,
+    config::ServerConfig,
     graphql::schema::{
         library::{LibraryMutation, LibraryQuery},
         media::{MediaMutation, MediaQuery},
@@ -31,7 +31,7 @@ pub use guard::AuthGuard;
 
 #[derive(Debug)]
 pub struct AppState {
-    pub config: Config,
+    pub config: ServerConfig,
     pub services: AppServices,
 }
 pub type SharedAppState = Arc<AppState>;
@@ -68,7 +68,7 @@ pub struct AppServices {
 }
 
 impl AppServices {
-    pub async fn new(config: &Config, db: DatabaseConnection) -> Self {
+    pub async fn new(config: &ServerConfig, db: DatabaseConnection) -> Self {
         let hash_config = HashConfig::default();
         let library_config = LibraryConfig {
             video_dir: config.video_dir.clone(),
@@ -130,7 +130,10 @@ impl AppServices {
 
 pub type AppSchema = Schema<QueryRoot, MutationRoot, EmptySubscription>;
 
-pub async fn create_schema(config: &Config, db: DatabaseConnection) -> (AppSchema, SharedAppState) {
+pub async fn create_schema(
+    config: &ServerConfig,
+    db: DatabaseConnection,
+) -> (AppSchema, SharedAppState) {
     let app_state = AppState {
         config: config.clone(),
         services: AppServices::new(config, db).await,

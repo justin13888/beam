@@ -11,6 +11,7 @@ salvo = { version = "0.77", features = [
     "affix-state",
 ] }
 chrono = "0.4"
+confique = "0.4.0"
 ffmpeg-next = "8.0.0"
 log = "0.4.28"
 regex = "1.12.3"

@@ -11,6 +11,9 @@ pub struct Library {
     pub description: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub last_scan_started_at: Option<DateTime<Utc>>,
+    pub last_scan_finished_at: Option<DateTime<Utc>>,
+    pub last_scan_file_count: Option<i32>,
 }
 
 /// Parameters for creating a new library
@@ -30,6 +33,9 @@ impl From<crate::entities::library::Model> for Library {
             description: model.description,
             created_at: model.created_at.with_timezone(&Utc),
             updated_at: model.updated_at.with_timezone(&Utc),
+            last_scan_started_at: model.last_scan_started_at.map(|d| d.with_timezone(&Utc)),
+            last_scan_finished_at: model.last_scan_finished_at.map(|d| d.with_timezone(&Utc)),
+            last_scan_file_count: model.last_scan_file_count,
         }
     }
 }

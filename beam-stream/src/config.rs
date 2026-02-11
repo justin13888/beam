@@ -10,6 +10,9 @@ pub enum ConfigError {
 
     #[error("Failed to create directory '{1}' for '{0}': {2}")]
     DirCreationError(String, String, std::io::Error),
+
+    #[error("Directory not found: {0}")]
+    DirNotFoundError(String),
 }
 
 /// Application configuration
@@ -49,31 +52,32 @@ impl ServerConfig {
         // 1. Load the configuration purely from environment variables
         let config = Self::builder().env().load()?;
 
-        // 2. Perform the filesystem side-effects (creating missing parent directories)
-        config.ensure_directories_exist()?;
+        // 2. Validate paths and ensure writeable directories exist
+        config.validate_paths()?;
 
         Ok(config)
     }
 
-    /// Validates that the path can be created (parent directory exists or can be created)
-    fn ensure_directories_exist(&self) -> Result<(), ConfigError> {
-        let directories_to_check = [
-            ("VIDEO_DIR", &self.video_dir),
-            ("CACHE_DIR", &self.cache_dir),
-        ];
+    /// Validates configuration paths
+    fn validate_paths(&self) -> Result<(), ConfigError> {
+        // VIDEO_DIR must exist (read-only mount)
+        if !self.video_dir.exists() {
+            return Err(ConfigError::DirNotFoundError(
+                self.video_dir.display().to_string(),
+            ));
+        }
 
-        for (var_name, path) in directories_to_check {
-            if let Some(parent) = path.parent()
-                && !parent.exists()
-            {
-                std::fs::create_dir_all(parent).map_err(|e| {
-                    ConfigError::DirCreationError(
-                        var_name.to_string(),
-                        path.display().to_string(),
-                        e,
-                    )
-                })?;
-            }
+        // CACHE_DIR can be created, so just ensure parent exists
+        if let Some(parent) = self.cache_dir.parent()
+            && !parent.exists()
+        {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                ConfigError::DirCreationError(
+                    "CACHE_DIR".to_string(),
+                    self.cache_dir.display().to_string(),
+                    e,
+                )
+            })?;
         }
 
         Ok(())

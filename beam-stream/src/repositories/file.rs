@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use sea_orm::{DatabaseConnection, DbErr};
 
-use crate::models::domain::{CreateMediaFile, MediaFile};
+use crate::models::domain::{CreateMediaFile, MediaFile, UpdateMediaFile};
+use uuid::Uuid;
 
 /// Repository for managing media file persistence operations.
 ///
@@ -24,6 +25,9 @@ pub trait FileRepository: Send + Sync + std::fmt::Debug {
     /// * `Err(DbErr)` - If a database error occurs
     async fn find_by_path(&self, path: &str) -> Result<Option<MediaFile>, DbErr>;
 
+    /// Finds all media files belonging to a specific library.
+    async fn find_all_by_library(&self, library_id: Uuid) -> Result<Vec<MediaFile>, DbErr>;
+
     /// Creates a new media file record in the database.
     ///
     /// # Arguments
@@ -35,6 +39,15 @@ pub trait FileRepository: Send + Sync + std::fmt::Debug {
     /// The newly created media file with its generated ID and timestamps,
     /// or a database error if creation fails.
     async fn create(&self, create: CreateMediaFile) -> Result<MediaFile, DbErr>;
+
+    /// Updates an existing media file record.
+    async fn update(&self, update: UpdateMediaFile) -> Result<MediaFile, DbErr>;
+
+    /// Deletes a media file by its ID.
+    async fn delete(&self, id: Uuid) -> Result<(), DbErr>;
+
+    /// Deletes multiple media files by their IDs.
+    async fn delete_by_ids(&self, ids: Vec<Uuid>) -> Result<u64, DbErr>;
 }
 
 /// SQL-based implementation of the FileRepository trait.
@@ -70,6 +83,18 @@ impl FileRepository for SqlFileRepository {
         Ok(model.map(MediaFile::from))
     }
 
+    async fn find_all_by_library(&self, library_id: Uuid) -> Result<Vec<MediaFile>, DbErr> {
+        use crate::entities::files;
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+        let models = files::Entity::find()
+            .filter(files::Column::LibraryId.eq(library_id))
+            .all(&self.db)
+            .await?;
+
+        Ok(models.into_iter().map(MediaFile::from).collect())
+    }
+
     async fn create(&self, create: CreateMediaFile) -> Result<MediaFile, DbErr> {
         use crate::entities::files;
         use crate::models::domain::MediaFileContent;
@@ -78,8 +103,9 @@ impl FileRepository for SqlFileRepository {
 
         let now = Utc::now();
         let (movie_entry_id, episode_id) = match create.content {
-            MediaFileContent::Movie { movie_entry_id } => (Some(movie_entry_id), None),
-            MediaFileContent::Episode { episode_id } => (None, Some(episode_id)),
+            Some(MediaFileContent::Movie { movie_entry_id }) => (Some(movie_entry_id), None),
+            Some(MediaFileContent::Episode { episode_id }) => (None, Some(episode_id)),
+            None => (None, None),
         };
 
         let new_file = files::ActiveModel {
@@ -99,9 +125,83 @@ impl FileRepository for SqlFileRepository {
             episode_id: Set(episode_id),
             scanned_at: Set(now.into()),
             updated_at: Set(now.into()),
+            file_status: Set(create.status.to_string()),
         };
 
         let result = new_file.insert(&self.db).await?;
         Ok(MediaFile::from(result))
+    }
+    async fn update(&self, update: UpdateMediaFile) -> Result<MediaFile, DbErr> {
+        use crate::entities::files;
+        use crate::models::domain::MediaFileContent;
+        use sea_orm::{ActiveModelTrait, Set};
+
+        let mut active_model: files::ActiveModel = files::ActiveModel {
+            id: Set(update.id),
+            ..Default::default()
+        };
+
+        if let Some(hash) = update.hash {
+            active_model.hash_xxh3 = Set(hash as i64);
+        }
+        if let Some(size) = update.size_bytes {
+            active_model.file_size = Set(size as i64);
+        }
+        if let Some(mime_type) = update.mime_type {
+            active_model.mime_type = Set(Some(mime_type));
+        }
+        if let Some(duration) = update.duration {
+            active_model.duration_secs = Set(Some(duration.as_secs_f64()));
+        }
+        if let Some(container) = update.container_format {
+            active_model.container_format = Set(Some(container));
+        }
+        if let Some(status) = update.status {
+            active_model.file_status = Set(status.to_string());
+        }
+
+        // Handle content update
+        if let Some(content) = update.content {
+            match content {
+                MediaFileContent::Movie { movie_entry_id } => {
+                    active_model.movie_entry_id = Set(Some(movie_entry_id));
+                    active_model.episode_id = Set(None);
+                }
+                MediaFileContent::Episode { episode_id } => {
+                    active_model.movie_entry_id = Set(None);
+                    active_model.episode_id = Set(Some(episode_id));
+                }
+            }
+        }
+
+        // Also update timestamp
+        active_model.updated_at = Set(chrono::Utc::now().into());
+
+        let result = active_model.update(&self.db).await?;
+        Ok(MediaFile::from(result))
+    }
+
+    async fn delete(&self, id: Uuid) -> Result<(), DbErr> {
+        use crate::entities::files;
+        use sea_orm::EntityTrait;
+
+        files::Entity::delete_by_id(id).exec(&self.db).await?;
+        Ok(())
+    }
+
+    async fn delete_by_ids(&self, ids: Vec<Uuid>) -> Result<u64, DbErr> {
+        use crate::entities::files;
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+        if ids.is_empty() {
+            return Ok(0);
+        }
+
+        let result = files::Entity::delete_many()
+            .filter(files::Column::Id.is_in(ids))
+            .exec(&self.db)
+            .await?;
+
+        Ok(result.rows_affected)
     }
 }

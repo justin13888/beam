@@ -17,7 +17,7 @@ use crate::{
     services::{
         auth::{AuthService, LocalAuthService},
         hash::{HashConfig, HashService, LocalHashService},
-        library::{LibraryConfig, LibraryService, LocalLibraryService},
+        library::{LibraryService, LocalLibraryService},
         metadata::{MetadataConfig, MetadataService, StubMetadataService},
         session_store::{RedisSessionStore, SessionStore},
         transcode::{LocalTranscodeService, TranscodeService},
@@ -70,9 +70,6 @@ pub struct AppServices {
 impl AppServices {
     pub async fn new(config: &ServerConfig, db: DatabaseConnection) -> Self {
         let hash_config = HashConfig::default();
-        let library_config = LibraryConfig {
-            video_dir: config.video_dir.clone(),
-        };
         let metadata_config = MetadataConfig {
             cache_dir: config.cache_dir.clone(),
         };
@@ -118,7 +115,7 @@ impl AppServices {
                 movie_repo,
                 show_repo,
                 stream_repo,
-                library_config,
+                config.video_dir.clone(),
                 hash_service.clone(),
                 media_info_service,
             )),

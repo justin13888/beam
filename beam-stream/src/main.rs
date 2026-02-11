@@ -30,16 +30,13 @@ async fn main() -> Result<()> {
 
     info!("Configuration loaded: {:?}", config);
 
-    // Ensure video and cache directories exist
-    tokio::fs::create_dir_all(&config.video_dir)
-        .await
-        .expect("Failed to create video directory");
+    // Ensure cache directory exists (video_dir is validated by config)
     tokio::fs::create_dir_all(&config.cache_dir)
         .await
-        .expect("Failed to create cache directory");
+        .map_err(|e| eyre!("Failed to create cache directory: {e}"))?;
 
     // Initialize ffmpeg bindings
-    ffmpeg_next::init().map_err(|e| eyre!("Failed to initialize ffmpeg: {}", e))?;
+    ffmpeg_next::init().map_err(|e| eyre!("Failed to initialize ffmpeg: {e}"))?;
 
     // Initialize m3u8-rs static variables
     m3u8_rs::WRITE_OPT_FLOAT_PRECISION.store(5, Ordering::Relaxed);

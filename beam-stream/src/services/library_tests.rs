@@ -1,14 +1,14 @@
 #[cfg(test)]
 mod tests {
     // use super::*;
-    use crate::models::domain::{MediaFile, MediaFileContent};
+    use crate::models::domain::file::{FileStatus, MediaFile, MediaFileContent};
     use crate::repositories::file::MockFileRepository;
     use crate::repositories::library::MockLibraryRepository;
     use crate::repositories::movie::MockMovieRepository;
     use crate::repositories::show::MockShowRepository;
     use crate::repositories::stream::MockMediaStreamRepository;
     use crate::services::hash::MockHashService;
-    use crate::services::library::{LibraryConfig, LocalLibraryService};
+    use crate::services::library::LocalLibraryService;
     use crate::services::media_info::MockMediaInfoService;
     use crate::utils::metadata::VideoFileMetadata;
     use std::path::PathBuf;
@@ -29,9 +29,9 @@ mod tests {
 
         // Config
         let temp_dir = TempDir::new().unwrap().keep();
-        let config = LibraryConfig {
-            video_dir: temp_dir.clone(),
-        };
+        // Config
+        let temp_dir = TempDir::new().unwrap().into_path();
+        let video_dir = temp_dir.clone();
 
         // File Path
         let path = temp_dir.join("movies/Avatar.mp4");
@@ -39,11 +39,8 @@ mod tests {
 
         // Mocks Expectations
 
-        // File Repo: Check if exists
-        mock_file_repo
-            .expect_find_by_path()
-            .times(1)
-            .returning(|_| Ok(None));
+        // File Repo: Check if exists - REMOVED from process_new_file
+        // mock_file_repo.expect_find_by_path()...
 
         // Media Info: Get Metadata
         mock_media_info_service
@@ -127,9 +124,10 @@ mod tests {
                 mime_type: Some("video/mp4".to_string()),
                 duration: None,
                 container_format: None,
-                content: MediaFileContent::Movie {
+                content: Some(MediaFileContent::Movie {
                     movie_entry_id: entry_id,
-                },
+                }),
+                status: FileStatus::Known,
                 scanned_at: chrono::Utc::now(),
                 updated_at: chrono::Utc::now(),
             })
@@ -147,12 +145,12 @@ mod tests {
             Arc::new(mock_movie_repo),
             Arc::new(mock_show_repo),
             Arc::new(mock_stream_repo),
-            config,
+            video_dir,
             Arc::new(mock_hash_service),
             Arc::new(mock_media_info_service),
         );
 
-        let result = service.process_file(&path, lib_id).await;
+        let result = service.process_new_file(&path, lib_id).await;
         assert!(result.is_ok());
         assert!(result.unwrap());
     }
@@ -170,9 +168,7 @@ mod tests {
 
         // Config
         let temp_dir = TempDir::new().unwrap();
-        let config = LibraryConfig {
-            video_dir: temp_dir.path().to_path_buf(),
-        };
+        let video_dir = temp_dir.path().to_path_buf();
 
         // File Path
         let path = temp_dir
@@ -183,10 +179,7 @@ mod tests {
         // Mocks Expectations
 
         // File Repo: Check if exists
-        mock_file_repo
-            .expect_find_by_path()
-            .times(1)
-            .returning(|_| Ok(None));
+        // File Repo: Check if exists - REMOVED
 
         // Media Info: Get Metadata
         mock_media_info_service
@@ -279,7 +272,8 @@ mod tests {
                 mime_type: Some("video/x-matroska".to_string()),
                 duration: None,
                 container_format: None,
-                content: MediaFileContent::Episode { episode_id },
+                content: Some(MediaFileContent::Episode { episode_id }),
+                status: FileStatus::Known,
                 scanned_at: chrono::Utc::now(),
                 updated_at: chrono::Utc::now(),
             })
@@ -297,76 +291,13 @@ mod tests {
             Arc::new(mock_movie_repo),
             Arc::new(mock_show_repo),
             Arc::new(mock_stream_repo),
-            config,
+            video_dir,
             Arc::new(mock_hash_service),
             Arc::new(mock_media_info_service),
         );
 
-        let result = service.process_file(&path, lib_id).await;
+        let result = service.process_new_file(&path, lib_id).await;
         assert!(result.is_ok());
         assert!(result.unwrap());
-    }
-
-    #[tokio::test]
-    async fn test_process_file_already_indexed() {
-        // Setup Mocks
-        let mock_library_repo = MockLibraryRepository::new();
-        let mut mock_file_repo = MockFileRepository::new();
-        let mock_movie_repo = MockMovieRepository::new();
-        let mock_show_repo = MockShowRepository::new();
-        let mock_stream_repo = MockMediaStreamRepository::new();
-        let mock_hash_service = MockHashService::new();
-        let mock_media_info_service = MockMediaInfoService::new();
-
-        // Config
-        let temp_dir = TempDir::new().unwrap();
-        let config = LibraryConfig {
-            video_dir: temp_dir.path().to_path_buf(),
-        };
-
-        // File Path
-        let path = temp_dir.path().join("movies/Existing.mp4");
-        let lib_id = Uuid::new_v4();
-
-        // Mocks Expectations
-
-        // File Repo: Check if exists -> Returns Some
-        mock_file_repo
-            .expect_find_by_path()
-            .times(1)
-            .returning(|_| {
-                Ok(Some(MediaFile {
-                    id: Uuid::new_v4(),
-                    library_id: Uuid::new_v4(),
-                    path: PathBuf::from("test"),
-                    hash: 1,
-                    size_bytes: 1,
-                    mime_type: None,
-                    duration: None,
-                    container_format: None,
-                    content: MediaFileContent::Movie {
-                        movie_entry_id: Uuid::new_v4(),
-                    },
-                    scanned_at: chrono::Utc::now(),
-                    updated_at: chrono::Utc::now(),
-                }))
-            });
-
-        // Expect NO other calls
-
-        let service = LocalLibraryService::new(
-            Arc::new(mock_library_repo),
-            Arc::new(mock_file_repo),
-            Arc::new(mock_movie_repo),
-            Arc::new(mock_show_repo),
-            Arc::new(mock_stream_repo),
-            config,
-            Arc::new(mock_hash_service),
-            Arc::new(mock_media_info_service),
-        );
-
-        let result = service.process_file(&path, lib_id).await;
-        assert!(result.is_ok());
-        assert!(!result.unwrap()); // Returns false because skipped
     }
 }

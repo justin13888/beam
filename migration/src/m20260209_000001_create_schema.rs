@@ -16,6 +16,15 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        manager
+            .create_type(
+                Type::create()
+                    .as_enum(FileStatus::Table)
+                    .values([FileStatus::Known, FileStatus::Changed, FileStatus::Unknown])
+                    .to_owned(),
+            )
+            .await?;
+
         // Create libraries table
         manager
             .create_table(
@@ -46,6 +55,9 @@ impl MigrationTrait for Migration {
                             .timestamp_with_time_zone()
                             .not_null(),
                     )
+                    .col(ColumnDef::new(Libraries::LastScanStartedAt).timestamp_with_time_zone())
+                    .col(ColumnDef::new(Libraries::LastScanFinishedAt).timestamp_with_time_zone())
+                    .col(ColumnDef::new(Libraries::LastScanFileCount).integer())
                     .to_owned(),
             )
             .await?;
@@ -437,6 +449,12 @@ impl MigrationTrait for Migration {
                             .timestamp_with_time_zone()
                             .not_null(),
                     )
+                    .col(
+                        ColumnDef::new(Files::FileStatus)
+                            .custom(FileStatus::Table)
+                            .not_null()
+                            .default("known"),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .from(Files::Table, Files::MovieEntryId)
@@ -456,8 +474,9 @@ impl MigrationTrait for Migration {
                             .on_delete(ForeignKeyAction::Cascade),
                     )
                     .check(Expr::cust(
-                        "(movie_entry_id IS NOT NULL AND episode_id IS NULL) OR \
-                             (movie_entry_id IS NULL AND episode_id IS NOT NULL)",
+                        "(file_status = 'unknown' AND movie_entry_id IS NULL AND episode_id IS NULL) OR \
+                         (movie_entry_id IS NOT NULL AND episode_id IS NULL) OR \
+                         (movie_entry_id IS NULL AND episode_id IS NOT NULL)",
                     ))
                     .to_owned(),
             )
@@ -819,6 +838,10 @@ impl MigrationTrait for Migration {
             .drop_type(Type::drop().name(StreamType::Table).to_owned())
             .await?;
 
+        manager
+            .drop_type(Type::drop().name(FileStatus::Table).to_owned())
+            .await?;
+
         Ok(())
     }
 }
@@ -833,6 +856,9 @@ enum Libraries {
     RootPath,
     CreatedAt,
     UpdatedAt,
+    LastScanStartedAt,
+    LastScanFinishedAt,
+    LastScanFileCount,
 }
 
 #[derive(DeriveIden)]
@@ -942,6 +968,7 @@ enum Files {
     IsPrimary,
     ScannedAt,
     UpdatedAt,
+    FileStatus,
 }
 
 #[derive(DeriveIden)]
@@ -977,6 +1004,17 @@ enum StreamType {
     Audio,
     #[sea_orm(iden = "subtitle")]
     Subtitle,
+}
+
+#[derive(DeriveIden)]
+enum FileStatus {
+    Table,
+    #[sea_orm(iden = "known")]
+    Known,
+    #[sea_orm(iden = "changed")]
+    Changed,
+    #[sea_orm(iden = "unknown")]
+    Unknown,
 }
 
 #[derive(DeriveIden)]

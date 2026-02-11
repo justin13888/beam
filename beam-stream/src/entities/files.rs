@@ -33,6 +33,7 @@ pub struct Model {
 
     pub scanned_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
+    pub file_status: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

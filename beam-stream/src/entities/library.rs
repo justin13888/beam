@@ -15,6 +15,9 @@ pub struct Model {
 
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
+    pub last_scan_started_at: Option<DateTimeWithTimeZone>,
+    pub last_scan_finished_at: Option<DateTimeWithTimeZone>,
+    pub last_scan_file_count: Option<i32>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

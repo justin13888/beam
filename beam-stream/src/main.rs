@@ -85,8 +85,8 @@ async fn main() -> Result<()> {
         .push(doc.into_router("/api-doc/openapi.json"))
         .push(Scalar::new("/api-doc/openapi.json").into_router("/openapi"));
 
-    info!("Binding to address: {}", config.bind_address);
-    let acceptor = TcpListener::new(&config.bind_address).bind().await;
+    info!("Binding to address: {}", &config.bind_address);
+    let acceptor = TcpListener::new(config.bind_address.clone()).bind().await;
 
     info!("Server listening on {}", config.bind_address);
     info!(

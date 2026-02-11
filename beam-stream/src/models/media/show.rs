@@ -5,8 +5,8 @@ use super::{ExternalIdentifiers, Ratings};
 use super::Title;
 use async_graphql::SimpleObject;
 use chrono::{DateTime, Utc};
+use salvo::oapi::ToSchema;
 use serde::Serialize;
-use utoipa::ToSchema;
 
 #[derive(Clone, Debug, Serialize, ToSchema, SimpleObject)]
 pub struct ShowMetadata {

@@ -1,6 +1,6 @@
 use async_graphql::{SimpleObject, Union};
+use salvo::oapi::ToSchema;
 use serde::Serialize;
-use utoipa::ToSchema;
 
 mod codec;
 mod format;

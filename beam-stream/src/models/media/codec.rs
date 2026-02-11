@@ -1,6 +1,6 @@
 use async_graphql::Enum;
+use salvo::oapi::ToSchema;
 use serde::Serialize;
-use utoipa::ToSchema;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema, Enum)]
 pub enum OutputVideoCodec {

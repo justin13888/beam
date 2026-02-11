@@ -4,7 +4,12 @@ resolver = "3"
 
 [workspace.dependencies]
 async-trait = "0.1"
-axum = "0.8.6"
+salvo = { version = "0.77", features = [
+    "oapi",
+    "cors",
+    "serve-static",
+    "affix-state",
+] }
 chrono = "0.4"
 ffmpeg-next = "8.0.0"
 log = "0.4.28"

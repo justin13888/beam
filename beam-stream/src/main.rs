@@ -1,20 +1,10 @@
 use std::sync::atomic::Ordering;
 
 use async_graphql::http::GraphiQLSource;
-use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
-use axum::{
-    Router,
-    extract::Extension,
-    http::HeaderMap,
-    response::{Html, IntoResponse},
-    routing::get,
-};
 use eyre::{Result, eyre};
-use listenfd::ListenFd;
-use tokio::net::TcpListener;
-use tower_http::cors::{Any, CorsLayer};
+use salvo::cors::Cors;
+use salvo::prelude::*;
 use tracing::info;
-use utoipa_scalar::{Scalar, Servable};
 
 use beam_stream::graphql::{AppSchema, SharedAppState, UserContext, create_schema};
 use beam_stream::{config::Config, graphql::AppContext};
@@ -22,7 +12,7 @@ use routes::create_router;
 
 mod routes;
 
-const GRAPHQL_PATH: &str = "/graphql";
+const GRAPHQL_PATH: &str = "graphql";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -61,65 +51,95 @@ async fn main() -> Result<()> {
         .map_err(|e| eyre!("Failed to connect to database: {}", e))?;
     info!("Connected to database");
 
-    let (router, api) = create_router().split_for_parts();
-    let router = router
-        .merge(Scalar::with_url("/openapi", api))
-        .nest("/auth", routes::auth::auth_routes());
-
     let (schema, state) = create_schema(&config, db).await;
-    let graphql_router = Router::new()
-        .route("/graphql", get(graphiql).post(graphql_handler))
-        .layer(Extension(schema))
-        .layer(Extension(state));
 
-    let app = router
-        .merge(graphql_router)
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any), // TODO: Restrict headers as necessary
-        )
-        .into_make_service();
+    // Build CORS handler
+    let cors = Cors::new()
+        .allow_origin(salvo::cors::Any)
+        .allow_methods(salvo::cors::Any)
+        .allow_headers(salvo::cors::Any)
+        .into_handler();
+
+    // Build API router
+    let api_router = create_router();
+
+    // Build auth router
+    let auth_router = Router::with_path("auth").push(routes::auth::auth_routes());
+
+    // Build GraphQL router
+    let graphql_router = Router::with_path(GRAPHQL_PATH)
+        .get(graphiql)
+        .post(graphql_handler);
+
+    // Combine all routers
+    let router = Router::new()
+        .hoop(cors)
+        .hoop(affix_state::inject(schema).inject(state))
+        .push(api_router)
+        .push(auth_router)
+        .push(graphql_router);
+
+    // Generate OpenAPI documentation
+    let doc = OpenApi::new("Beam Stream API", "1.0.0").merge_router(&router);
+    let router = router
+        .push(doc.into_router("/api-doc/openapi.json"))
+        .push(Scalar::new("/api-doc/openapi.json").into_router("/openapi"));
 
     info!("Binding to address: {}", config.bind_address);
-    let mut listenfd = ListenFd::from_env();
-    let listener = match listenfd.take_tcp_listener(0).unwrap() {
-        // if we are given a tcp listener on listen fd 0, we use that one
-        Some(listener) => {
-            listener.set_nonblocking(true).unwrap();
-            TcpListener::from_std(listener).unwrap()
-        }
-        // otherwise fall back to local listening
-        None => TcpListener::bind(&config.bind_address).await.unwrap(),
-    };
-    let local_addr = listener.local_addr().unwrap();
+    let acceptor = TcpListener::new(&config.bind_address).bind().await;
 
-    info!("Server listening on http://{local_addr}");
-    info!("API documentation available at http://{local_addr}/openapi",);
-    info!("GraphiQL interface available at http://{local_addr}{GRAPHQL_PATH}",);
+    info!("Server listening on {}", config.bind_address);
+    info!(
+        "API documentation available at http://{}/openapi",
+        config.bind_address
+    );
+    info!(
+        "GraphiQL interface available at http://{}/{}",
+        config.bind_address, GRAPHQL_PATH
+    );
 
-    axum::serve(listener, app)
-        .await
-        .map_err(|e| eyre!("Server error: {}", e))?;
+    Server::new(acceptor).serve(router).await;
 
     Ok(())
 }
 
-async fn graphiql() -> impl IntoResponse {
-    Html(GraphiQLSource::build().endpoint(GRAPHQL_PATH).finish())
+#[handler]
+async fn graphiql(res: &mut Response) {
+    res.render(Text::Html(
+        GraphiQLSource::build()
+            .endpoint(&format!("/{}", GRAPHQL_PATH))
+            .finish(),
+    ));
 }
 
-async fn graphql_handler(
-    headers: HeaderMap,
-    Extension(schema): Extension<AppSchema>,
-    Extension(state): Extension<SharedAppState>,
-    req: GraphQLRequest,
-) -> GraphQLResponse {
-    let mut req = req.into_inner();
+#[handler]
+async fn graphql_handler(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+    let schema = depot.obtain::<AppSchema>().unwrap().clone();
+    let state = depot.obtain::<SharedAppState>().unwrap().clone();
+
+    // Parse GraphQL request from body
+    let body_bytes = match req.payload().await {
+        Ok(bytes) => bytes.to_vec(),
+        Err(_) => {
+            res.status_code(StatusCode::BAD_REQUEST);
+            res.render(Text::Plain("Failed to read request body"));
+            return;
+        }
+    };
+
+    let gql_request: async_graphql::Request = match serde_json::from_slice(&body_bytes) {
+        Ok(r) => r,
+        Err(_) => {
+            res.status_code(StatusCode::BAD_REQUEST);
+            res.render(Text::Plain("Invalid GraphQL request"));
+            return;
+        }
+    };
+
+    let mut gql_request = gql_request;
     let mut user_context = None;
 
-    if let Some(auth_header) = headers.get("Authorization")
+    if let Some(auth_header) = req.headers().get("Authorization")
         && let Ok(auth_str) = auth_header.to_str()
         && auth_str.starts_with("Bearer ")
     {
@@ -139,7 +159,22 @@ async fn graphql_handler(
     }
 
     let app_context = AppContext::new(user_context);
-    req = req.data(app_context);
+    gql_request = gql_request.data(app_context);
 
-    schema.execute(req).await.into()
+    let gql_response = schema.execute(gql_request).await;
+
+    // Serialize response
+    match serde_json::to_vec(&gql_response) {
+        Ok(json_bytes) => {
+            res.headers_mut()
+                .insert("Content-Type", "application/json".parse().unwrap());
+            res.body(salvo::http::body::ResBody::Once(bytes::Bytes::from(
+                json_bytes,
+            )));
+        }
+        Err(_) => {
+            res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
+            res.render(Text::Plain("Failed to serialize GraphQL response"));
+        }
+    }
 }

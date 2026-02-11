@@ -1,11 +1,5 @@
-use axum::{
-    Router,
-    extract::{Extension, Json},
-    http::StatusCode,
-    response::IntoResponse,
-    routing::post,
-};
 use beam_stream::graphql::AppServices;
+use salvo::prelude::*;
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -27,66 +21,121 @@ pub struct RefreshRequest {
     pub session_id: String,
 }
 
-pub async fn register(
-    Extension(services): Extension<Arc<AppServices>>,
-    Json(req): Json<RegisterRequest>,
-) -> impl IntoResponse {
+#[handler]
+pub async fn register(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+    let services = depot.obtain::<Arc<AppServices>>().unwrap();
+    let body: RegisterRequest = match req.parse_json().await {
+        Ok(b) => b,
+        Err(_) => {
+            res.status_code(StatusCode::BAD_REQUEST);
+            res.render(Text::Plain("Invalid request body"));
+            return;
+        }
+    };
+
     // TODO: Get device info from headers
     let device_hash = "unknown_device";
     let ip = "0.0.0.0";
 
     match services
         .auth
-        .register(&req.username, &req.email, &req.password, device_hash, ip)
+        .register(&body.username, &body.email, &body.password, device_hash, ip)
         .await
     {
-        Ok(res) => (StatusCode::OK, Json(res)).into_response(),
-        Err(err) => (StatusCode::BAD_REQUEST, err.to_string()).into_response(),
+        Ok(result) => {
+            res.status_code(StatusCode::OK);
+            res.render(Json(result));
+        }
+        Err(err) => {
+            res.status_code(StatusCode::BAD_REQUEST);
+            res.render(Text::Plain(err.to_string()));
+        }
     }
 }
 
-pub async fn login(
-    Extension(services): Extension<Arc<AppServices>>,
-    Json(req): Json<LoginRequest>,
-) -> impl IntoResponse {
+#[handler]
+pub async fn login(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+    let services = depot.obtain::<Arc<AppServices>>().unwrap();
+    let body: LoginRequest = match req.parse_json().await {
+        Ok(b) => b,
+        Err(_) => {
+            res.status_code(StatusCode::BAD_REQUEST);
+            res.render(Text::Plain("Invalid request body"));
+            return;
+        }
+    };
+
     // TODO: Get device info from headers
     let device_hash = "unknown_device";
     let ip = "0.0.0.0";
 
     match services
         .auth
-        .login(&req.username_or_email, &req.password, device_hash, ip)
+        .login(&body.username_or_email, &body.password, device_hash, ip)
         .await
     {
-        Ok(res) => (StatusCode::OK, Json(res)).into_response(),
-        Err(err) => (StatusCode::UNAUTHORIZED, err.to_string()).into_response(),
+        Ok(result) => {
+            res.status_code(StatusCode::OK);
+            res.render(Json(result));
+        }
+        Err(err) => {
+            res.status_code(StatusCode::UNAUTHORIZED);
+            res.render(Text::Plain(err.to_string()));
+        }
     }
 }
 
-pub async fn refresh(
-    Extension(services): Extension<Arc<AppServices>>,
-    Json(req): Json<RefreshRequest>,
-) -> impl IntoResponse {
-    match services.auth.refresh(&req.session_id).await {
-        Ok(res) => (StatusCode::OK, Json(res)).into_response(),
-        Err(err) => (StatusCode::UNAUTHORIZED, err.to_string()).into_response(),
+#[handler]
+pub async fn refresh(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+    let services = depot.obtain::<Arc<AppServices>>().unwrap();
+    let body: RefreshRequest = match req.parse_json().await {
+        Ok(b) => b,
+        Err(_) => {
+            res.status_code(StatusCode::BAD_REQUEST);
+            res.render(Text::Plain("Invalid request body"));
+            return;
+        }
+    };
+
+    match services.auth.refresh(&body.session_id).await {
+        Ok(result) => {
+            res.status_code(StatusCode::OK);
+            res.render(Json(result));
+        }
+        Err(err) => {
+            res.status_code(StatusCode::UNAUTHORIZED);
+            res.render(Text::Plain(err.to_string()));
+        }
     }
 }
 
-pub async fn logout(
-    Extension(services): Extension<Arc<AppServices>>,
-    Json(req): Json<RefreshRequest>, // Re-using RefreshRequest since it has session_id
-) -> impl IntoResponse {
-    match services.auth.logout(&req.session_id).await {
-        Ok(_) => StatusCode::OK.into_response(),
-        Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
+#[handler]
+pub async fn logout(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+    let services = depot.obtain::<Arc<AppServices>>().unwrap();
+    let body: RefreshRequest = match req.parse_json().await {
+        Ok(b) => b,
+        Err(_) => {
+            res.status_code(StatusCode::BAD_REQUEST);
+            res.render(Text::Plain("Invalid request body"));
+            return;
+        }
+    };
+
+    match services.auth.logout(&body.session_id).await {
+        Ok(_) => {
+            res.status_code(StatusCode::OK);
+        }
+        Err(err) => {
+            res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
+            res.render(Text::Plain(err.to_string()));
+        }
     }
 }
 
 pub fn auth_routes() -> Router {
     Router::new()
-        .route("/register", post(register))
-        .route("/login", post(login))
-        .route("/refresh", post(refresh))
-        .route("/logout", post(logout))
+        .push(Router::with_path("register").post(register))
+        .push(Router::with_path("login").post(login))
+        .push(Router::with_path("refresh").post(refresh))
+        .push(Router::with_path("logout").post(logout))
 }

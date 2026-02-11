@@ -18,8 +18,9 @@ async-graphql = { version = "7.0.17", features = [
     "uuid",
     "url",
 ] }
-async-graphql-axum = "7.0.17"
-axum = { workspace = true, features = ["http2", "multipart"] }
+salvo = { workspace = true }
+bytes = "1"
+http = "1"
 chrono = { workspace = true, features = ["serde"] }
 color-eyre = "0.6.5"
 dotenvy = "0.15.7"
@@ -27,7 +28,7 @@ eyre = "0.6.12"
 ffmpeg-next = { workspace = true }
 fs2 = "0.4.3"
 hex = { version = "0.4.3", features = ["serde"] }
-listenfd = "1.0.2"
+
 log = { workspace = true, features = ["serde", "release_max_level_debug"] }
 m3u8-rs = "6.0.0"
 num = { version = "0.4.3", features = ["serde"] }
@@ -39,19 +40,10 @@ serde = { workspace = true, features = ["derive"] }
 tempfile = "3.23.0"
 thiserror = { workspace = true }
 tokio = { workspace = true }
-tower-http = { version = "0.6.6", features = ["cors"] }
+
 tracing = { workspace = true, features = ["log", "release_max_level_debug"] }
 tracing-subscriber = { workspace = true, features = ["json", "env-filter"] }
-utoipa = { version = "5.4.0", features = [
-    "axum_extras",
-    "chrono",
-    "decimal",
-    "url",
-    "uuid",
-] }
-utoipa-axum = "0.2.0"
-utoipa-scalar = { version = "0.3.0", features = ["axum"] }
-utoipa-swagger-ui = { version = "9.0.2", features = ["axum"] }
+
 uuid = { workspace = true }
 xxhash-rust = { version = "0.8.15", features = ["xxh3"] }
 sea-orm = { workspace = true }

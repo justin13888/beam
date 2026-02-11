@@ -1,6 +1,6 @@
 use async_graphql::SimpleObject;
+use salvo::oapi::ToSchema;
 use serde::Serialize;
-use utoipa::ToSchema;
 
 #[derive(Clone, Debug, Serialize, ToSchema, SimpleObject)]
 pub struct Library {

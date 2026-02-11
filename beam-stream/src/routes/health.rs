@@ -1,6 +1,6 @@
-use axum::Json;
+use salvo::oapi::ToSchema;
+use salvo::prelude::*;
 use serde::Serialize;
-use utoipa::ToSchema;
 
 #[derive(Serialize, ToSchema)]
 pub struct HealthStatus {
@@ -16,20 +16,18 @@ pub struct ErrorResponse {
 }
 
 /// Health check endpoint
-#[utoipa::path(
-    get,
-    path = "/health",
+#[endpoint(
+    tags("health"),
     responses(
-        (status = 200, description = "Service is healthy", body = HealthStatus),
-        (status = 500, description = "Service is unhealthy", body = ErrorResponse)
-    ),
-    tag = "health"
+        (status_code = 200, description = "Service is healthy"),
+        (status_code = 500, description = "Service is unhealthy")
+    )
 )]
 #[tracing::instrument]
-pub async fn health_check() -> Json<HealthStatus> {
-    Json(HealthStatus {
+pub async fn health_check(res: &mut Response) {
+    res.render(Json(HealthStatus {
         status: "healthy".to_string(),
         timestamp: chrono::Utc::now().to_rfc3339(),
         version: env!("CARGO_PKG_VERSION").to_string(),
-    })
+    }));
 }

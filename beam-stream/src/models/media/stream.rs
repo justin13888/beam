@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use crate::utils::stream::config::StreamConfiguration;
 use async_graphql::SimpleObject;
 use rust_decimal::Decimal;
+use salvo::oapi::ToSchema;
 use serde::Serialize;
-use utoipa::ToSchema;
 
 use super::{OutputAudioCodec, OutputSubtitleCodec, OutputVideoCodec, Resolution};
 

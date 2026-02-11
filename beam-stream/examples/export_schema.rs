@@ -18,7 +18,7 @@ async fn main() -> Result<()> {
     let db = sea_orm::Database::connect(&config.database_url).await?;
 
     // Create the GraphQL schema
-    let schema = create_schema(&config, db);
+    let (schema, _state) = create_schema(&config, db).await;
 
     // Export as SDL
     let sdl = schema.sdl();

@@ -3,8 +3,8 @@ use crate::models::MediaStreamMetadata;
 use super::{ExternalIdentifiers, Ratings, Title};
 use async_graphql::SimpleObject;
 use chrono::{DateTime, Utc};
+use salvo::oapi::ToSchema;
 use serde::Serialize;
-use utoipa::ToSchema;
 
 #[derive(Clone, Debug, Serialize, ToSchema, SimpleObject)]
 pub struct MovieMetadata {

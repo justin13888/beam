@@ -1,15 +1,12 @@
-use axum::body::Body;
-use axum::extract::{Extension, Json, Path, Query};
-use axum::http::{HeaderMap, StatusCode};
-use axum::response::Response;
 use beam_stream::graphql::SharedAppState;
+use salvo::oapi::ToSchema;
+use salvo::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::fs::File;
 use tracing::{debug, error, trace};
-use utoipa::{IntoParams, ToSchema};
 
-#[derive(Debug, Deserialize, IntoParams)]
+#[derive(Debug, Deserialize, ToParameters)]
 pub struct StreamParams {
     pub token: String,
 }
@@ -20,79 +17,84 @@ pub struct StreamTokenResponse {
 }
 
 /// Get a presigned token for streaming
-#[utoipa::path(
-    post,
-    path = "/stream/{id}/token",
-    params(
-        ("id" = String, Path, description = "Stream ID")
+#[endpoint(
+    tags("stream"),
+    parameters(
+        ("id" = String, description = "Stream ID")
     ),
     responses(
-        (status = 200, description = "Stream token", body = StreamTokenResponse),
-        (status = 401, description = "Unauthorized", body = super::ErrorResponse),
-        (status = 404, description = "Stream not found", body = super::ErrorResponse)
-    ),
-    tag = "stream"
+        (status_code = 200, description = "Stream token"),
+        (status_code = 401, description = "Unauthorized"),
+        (status_code = 404, description = "Stream not found")
+    )
 )]
-pub async fn get_stream_token(
-    Path(id): Path<String>,
-    headers: HeaderMap,
-    Extension(state): Extension<SharedAppState>,
-) -> Result<Json<StreamTokenResponse>, StatusCode> {
+pub async fn get_stream_token(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+    let state = depot.obtain::<SharedAppState>().unwrap();
+    let id: String = req.param::<String>("id").unwrap_or_default();
+
     // Validate user auth
-    let user_id = if let Some(auth_header) = headers.get("Authorization")
+    let user_id = if let Some(auth_header) = req.headers().get("Authorization")
         && let Ok(auth_str) = auth_header.to_str()
         && auth_str.starts_with("Bearer ")
     {
         let token = &auth_str[7..];
         match state.services.auth.verify_token(token).await {
             Ok(user) => user.user_id,
-            Err(_) => return Err(StatusCode::UNAUTHORIZED),
+            Err(_) => {
+                res.status_code(StatusCode::UNAUTHORIZED);
+                return;
+            }
         }
     } else {
-        return Err(StatusCode::UNAUTHORIZED);
+        res.status_code(StatusCode::UNAUTHORIZED);
+        return;
     };
 
     // Create stream token
     // TODO: Verify stream exists
-
     match state.services.auth.create_stream_token(&user_id, &id) {
-        Ok(token) => Ok(Json(StreamTokenResponse { token })),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+        Ok(token) => {
+            res.render(Json(StreamTokenResponse { token }));
+        }
+        Err(_) => {
+            res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
+        }
     }
 }
 
 /// Stream via MP4 - serves AVFoundation-friendly fragmented MP4
-#[utoipa::path(
-    get,
-    path = "/stream/mp4/{id}",
-    params(
-        ("id" = String, Path, description = "Stream ID"),
-        ("token" = String, Query, description = "Presigned stream token")
+#[endpoint(
+    tags("media"),
+    parameters(
+        ("id" = String, description = "Stream ID"),
+        ("token" = String, description = "Presigned stream token")
     ),
     responses(
-        (status = 200, description = "Media stream", content_type = "video/mp4"),
-        (status = 401, description = "Invalid or expired token", body = super::ErrorResponse),
-        (status = 404, description = "File not found", body = super::ErrorResponse),
-        (status = 416, description = "Range not satisfiable", body = super::ErrorResponse),
-        (status = 500, description = "Internal server error", body = super::ErrorResponse)
-    ),
-    tag = "media"
+        (status_code = 200, description = "Media stream"),
+        (status_code = 401, description = "Invalid or expired token"),
+        (status_code = 404, description = "File not found"),
+        (status_code = 416, description = "Range not satisfiable"),
+        (status_code = 500, description = "Internal server error")
+    )
 )]
-#[tracing::instrument(skip(state))]
-pub async fn stream_mp4(
-    Path(id): Path<String>,
-    Query(params): Query<StreamParams>,
-    headers: HeaderMap,
-    Extension(state): Extension<SharedAppState>,
-) -> Result<Response, StatusCode> {
+#[tracing::instrument(skip_all)]
+pub async fn stream_mp4(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+    let state = depot.obtain::<SharedAppState>().unwrap();
+    let id: String = req.param::<String>("id").unwrap_or_default();
+    let token: String = req.query::<String>("token").unwrap_or_default();
+
     // Validate stream token
-    match state.services.auth.verify_stream_token(&params.token) {
+    match state.services.auth.verify_stream_token(&token) {
         Ok(stream_id) => {
             if stream_id != id {
-                return Err(StatusCode::UNAUTHORIZED);
+                res.status_code(StatusCode::UNAUTHORIZED);
+                return;
             }
         }
-        Err(_) => return Err(StatusCode::UNAUTHORIZED),
+        Err(_) => {
+            res.status_code(StatusCode::UNAUTHORIZED);
+            return;
+        }
     }
 
     debug!("Streaming media with ID: {}", id);
@@ -104,7 +106,8 @@ pub async fn stream_mp4(
 
     if !source_video_path.exists() {
         error!("Source video file not found: {:?}", source_video_path);
-        return Err(StatusCode::NOT_FOUND);
+        res.status_code(StatusCode::NOT_FOUND);
+        return;
     }
 
     // Generate MP4 if it doesn't exist or is outdated
@@ -118,7 +121,8 @@ pub async fn stream_mp4(
             .await
         {
             error!("Failed to generate MP4: {:?}", err);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
+            return;
         }
 
         trace!("MP4 generation complete: {:?}", cache_mp4_path);
@@ -127,11 +131,11 @@ pub async fn stream_mp4(
     }
 
     // Serve the MP4 file with range request support
-    serve_mp4_file(&cache_mp4_path, &headers).await
+    serve_mp4_file(&cache_mp4_path, req, res).await;
 }
 
 /// Serve MP4 file with HTTP range request support for AVFoundation
-async fn serve_mp4_file(file_path: &PathBuf, headers: &HeaderMap) -> Result<Response, StatusCode> {
+async fn serve_mp4_file(file_path: &PathBuf, req: &Request, res: &mut Response) {
     use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
     // Get file metadata
@@ -139,7 +143,8 @@ async fn serve_mp4_file(file_path: &PathBuf, headers: &HeaderMap) -> Result<Resp
         Ok(metadata) => metadata,
         Err(err) => {
             error!("Failed to get file metadata: {:?}", err);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
+            return;
         }
     };
 
@@ -149,39 +154,42 @@ async fn serve_mp4_file(file_path: &PathBuf, headers: &HeaderMap) -> Result<Resp
     let content_type = "video/mp4";
 
     // Handle range requests
-    let range = headers.get("range");
+    let range = req.headers().get("range");
     let (start, end, status_code) = if let Some(range_header) = range {
         let range_str = match range_header.to_str() {
             Ok(s) => s,
-            Err(_) => return Err(StatusCode::BAD_REQUEST),
+            Err(_) => {
+                res.status_code(StatusCode::BAD_REQUEST);
+                return;
+            }
         };
 
         if !range_str.starts_with("bytes=") {
-            return Err(StatusCode::BAD_REQUEST);
+            res.status_code(StatusCode::BAD_REQUEST);
+            return;
         }
 
         let range_part = &range_str[6..]; // Remove "bytes="
         let parts: Vec<&str> = range_part.split('-').collect();
 
         if parts.len() != 2 {
-            return Err(StatusCode::BAD_REQUEST);
+            res.status_code(StatusCode::BAD_REQUEST);
+            return;
         }
 
         let start = if parts[0].is_empty() {
             // Suffix range like "-500"
             if let Ok(suffix) = parts[1].parse::<u64>() {
-                if suffix >= file_size {
-                    0
-                } else {
-                    file_size - suffix
-                }
+                file_size.saturating_sub(suffix)
             } else {
-                return Err(StatusCode::BAD_REQUEST);
+                res.status_code(StatusCode::BAD_REQUEST);
+                return;
             }
         } else if let Ok(s) = parts[0].parse::<u64>() {
             s
         } else {
-            return Err(StatusCode::BAD_REQUEST);
+            res.status_code(StatusCode::BAD_REQUEST);
+            return;
         };
 
         let end = if parts[1].is_empty() {
@@ -189,11 +197,13 @@ async fn serve_mp4_file(file_path: &PathBuf, headers: &HeaderMap) -> Result<Resp
         } else if let Ok(e) = parts[1].parse::<u64>() {
             std::cmp::min(e, file_size - 1)
         } else {
-            return Err(StatusCode::BAD_REQUEST);
+            res.status_code(StatusCode::BAD_REQUEST);
+            return;
         };
 
         if start > end || start >= file_size {
-            return Err(StatusCode::RANGE_NOT_SATISFIABLE);
+            res.status_code(StatusCode::RANGE_NOT_SATISFIABLE);
+            return;
         }
 
         (start, end, StatusCode::PARTIAL_CONTENT)
@@ -206,16 +216,18 @@ async fn serve_mp4_file(file_path: &PathBuf, headers: &HeaderMap) -> Result<Resp
         Ok(f) => f,
         Err(err) => {
             error!("Failed to open file: {:?}", err);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
+            return;
         }
     };
 
     // Seek to start position if needed
-    if start > 0 {
-        if let Err(err) = file.seek(std::io::SeekFrom::Start(start)).await {
-            error!("Failed to seek in file: {:?}", err);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
+    if start > 0
+        && let Err(err) = file.seek(std::io::SeekFrom::Start(start)).await
+    {
+        error!("Failed to seek in file: {:?}", err);
+        res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
+        return;
     }
 
     let content_length = end - start + 1;
@@ -226,35 +238,37 @@ async fn serve_mp4_file(file_path: &PathBuf, headers: &HeaderMap) -> Result<Resp
         Ok(_) => {}
         Err(err) => {
             error!("Failed to read file: {:?}", err);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
+            return;
         }
     }
 
     // Build response
-    let mut response = Response::builder()
-        .status(status_code)
-        .header("Content-Type", content_type)
-        .header("Content-Length", content_length.to_string())
-        .header("Accept-Ranges", "bytes");
+    res.status_code(status_code);
+    res.headers_mut()
+        .insert("Content-Type", content_type.parse().unwrap());
+    res.headers_mut().insert(
+        "Content-Length",
+        content_length.to_string().parse().unwrap(),
+    );
+    res.headers_mut()
+        .insert("Accept-Ranges", "bytes".parse().unwrap());
 
     // Add range headers for partial content
     if status_code == StatusCode::PARTIAL_CONTENT {
-        response = response.header(
+        res.headers_mut().insert(
             "Content-Range",
-            format!("bytes {}-{}/{}", start, end, file_size),
+            format!("bytes {}-{}/{}", start, end, file_size)
+                .parse()
+                .unwrap(),
         );
     }
 
     // Add cache headers for better performance
-    response = response
-        .header("Cache-Control", "public, max-age=3600")
-        .header("ETag", format!("\"{}\"", file_size)); // Simple ETag based on file size
+    res.headers_mut()
+        .insert("Cache-Control", "public, max-age=3600".parse().unwrap());
+    res.headers_mut()
+        .insert("ETag", format!("\"{}\"", file_size).parse().unwrap()); // Simple ETag based on file size
 
-    match response.body(Body::from(buffer)) {
-        Ok(resp) => Ok(resp),
-        Err(err) => {
-            error!("Failed to build response: {:?}", err);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+    res.body(salvo::http::body::ResBody::Once(bytes::Bytes::from(buffer)));
 }

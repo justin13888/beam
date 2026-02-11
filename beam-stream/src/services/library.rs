@@ -8,6 +8,7 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 
 use crate::models::Library;
+use crate::models::domain::Library as DomainLibrary;
 use crate::models::domain::file::{FileStatus, MediaFileContent, UpdateMediaFile};
 use crate::services::hash::HashService;
 use crate::services::media_info::MediaInfoService;
@@ -353,13 +354,27 @@ impl LibraryService for LocalLibraryService {
         // Convert domain models to GraphQL models
         let mut result = Vec::new();
         for lib in domain_libraries {
+            let DomainLibrary {
+                id,
+                name,
+                root_path: _,
+                description,
+                created_at: _,
+                updated_at: _,
+                last_scan_started_at,
+                last_scan_finished_at,
+                last_scan_file_count,
+            } = lib;
             let size = self.library_repo.count_files(lib.id).await?;
 
             result.push(Library {
-                id: lib.id.to_string(),
-                name: lib.name,
-                description: lib.description,
+                id: id.to_string(),
+                name,
+                description,
                 size: size as u32,
+                last_scan_started_at: last_scan_started_at.map(|d| d.with_timezone(&chrono::Utc)),
+                last_scan_finished_at: last_scan_finished_at.map(|d| d.with_timezone(&chrono::Utc)),
+                last_scan_file_count,
             });
         }
 
@@ -424,13 +439,26 @@ impl LibraryService for LocalLibraryService {
             description: None,
         };
 
-        let domain_library = self.library_repo.create(create).await?;
+        let DomainLibrary {
+            id,
+            name,
+            root_path: _,
+            description,
+            created_at: _,
+            updated_at: _,
+            last_scan_started_at,
+            last_scan_finished_at,
+            last_scan_file_count,
+        } = self.library_repo.create(create).await?;
 
         Ok(Library {
-            id: domain_library.id.to_string(),
-            name: domain_library.name,
-            description: domain_library.description,
+            id: id.to_string(),
+            name,
+            description,
             size: 0,
+            last_scan_started_at,
+            last_scan_finished_at,
+            last_scan_file_count,
         })
     }
 

@@ -1,6 +1,6 @@
 //! Export GraphQL schema to a file for code generation
 
-use beam_stream::config::Config;
+use beam_stream::config::ServerConfig;
 use beam_stream::graphql::create_schema;
 use eyre::Result;
 use std::fs;
@@ -11,7 +11,7 @@ async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
 
     // Load configuration (or use defaults)
-    let config = Config::from_env()?;
+    let config = ServerConfig::load_and_validate()?;
 
     // Connect to database (needed for schema creation even if not used)
     // We can use the real DB since we expect it to be running in dev environment

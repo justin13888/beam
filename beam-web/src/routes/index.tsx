@@ -1,11 +1,16 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { gql } from '@apollo/client';
-import { useQuery, useMutation } from '@apollo/client/react';
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { gql } from "@apollo/client";
+import { useQuery } from "@apollo/client/react";
+import type { QueryRoot } from "../gql";
+import {
+	Library,
+	FileVideo,
+	Scan,
+	Search,
+	ChevronRight,
+	RefreshCw,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useState } from 'react';
-import type { QueryRoot, MutationRoot, LibraryMutationCreateLibraryArgs } from '../gql';
 
 const GET_LIBRARIES = gql`
   query GetLibraries {
@@ -15,87 +20,154 @@ const GET_LIBRARIES = gql`
         name
         description
         size
+        lastScanStartedAt
+        lastScanFinishedAt
+        lastScanFileCount
       }
     }
   }
 `;
 
-const CREATE_LIBRARY = gql`
-  mutation CreateLibrary($name: String!, $rootPath: String!) {
-    library {
-      createLibrary(name: $name, rootPath: $rootPath) {
-        id
-        name
-      }
-    }
-  }
-`;
+export const Route = createFileRoute("/")({
+	component: DashboardPage,
+});
 
-export const Route = createFileRoute('/')({
-  component: App,
-})
+function DashboardPage() {
+	const { data, loading } = useQuery<QueryRoot>(GET_LIBRARIES);
+	const libraries = data?.library?.libraries ?? [];
+	const totalFiles = libraries.reduce((sum, lib) => sum + lib.size, 0);
 
-function App() {
-  const { data, loading, error, refetch } = useQuery<QueryRoot>(GET_LIBRARIES);
-  const [createLibrary] = useMutation<MutationRoot, LibraryMutationCreateLibraryArgs>(CREATE_LIBRARY);
+	return (
+		<div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
+			<div className="max-w-5xl mx-auto px-6 py-16">
+				{/* Hero */}
+				<div className="text-center mb-16">
+					<h1 className="text-5xl font-bold text-white mb-4">
+						Welcome to{" "}
+						<span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+							Beam
+						</span>
+					</h1>
+					<p className="text-lg text-gray-400 max-w-xl mx-auto">
+						Your personal media server. Organize, index, and stream your
+						media collections.
+					</p>
+				</div>
 
-  const [name, setName] = useState('');
-  const [rootPath, setRootPath] = useState('');
+				{/* Quick Stats */}
+				{!loading && (
+					<div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
+						<div className="rounded-xl bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 p-5 text-center">
+							<Library className="mx-auto text-cyan-400 mb-2" size={28} />
+							<div className="text-3xl font-bold text-white">
+								{libraries.length}
+							</div>
+							<div className="text-sm text-gray-400 mt-1">Libraries</div>
+						</div>
+						<div className="rounded-xl bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 p-5 text-center">
+							<FileVideo className="mx-auto text-purple-400 mb-2" size={28} />
+							<div className="text-3xl font-bold text-white">{totalFiles}</div>
+							<div className="text-sm text-gray-400 mt-1">Total Files</div>
+						</div>
+						<div className="rounded-xl bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 p-5 text-center">
+							<Scan className="mx-auto text-emerald-400 mb-2" size={28} />
+							<div className="text-3xl font-bold text-white">
+								{libraries.filter((l) => l.lastScanFinishedAt).length}
+							</div>
+							<div className="text-sm text-gray-400 mt-1">Scanned</div>
+						</div>
+					</div>
+				)}
 
-  const handleCreate = async (e: React.FormEvent) => {
-      e.preventDefault();
-      try {
-          await createLibrary({ variables: { name, rootPath } });
-          refetch();
-          setName('');
-          setRootPath('');
-      } catch (err) {
-          console.error(err);
-      }
-  };
+				{loading && (
+					<div className="flex items-center justify-center py-12 text-gray-400">
+						<RefreshCw className="animate-spin mr-2" size={18} />
+						Loading...
+					</div>
+				)}
 
-  if (loading) return <div className="p-8">Loading...</div>;
-  if (error) return <div className="p-8 text-red-500">Error: {error.message}</div>;
+				{/* Quick Actions */}
+				<div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+					<Link to="/libraries" className="group">
+						<div className="rounded-xl bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 p-6 hover:border-cyan-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/5">
+							<div className="flex items-center justify-between">
+								<div>
+									<h3 className="text-lg font-semibold text-white flex items-center gap-2">
+										<Library size={20} className="text-cyan-400" />
+										Manage Libraries
+									</h3>
+									<p className="text-sm text-gray-400 mt-1">
+										View, create, scan, and manage your media libraries
+									</p>
+								</div>
+								<ChevronRight
+									size={20}
+									className="text-gray-600 group-hover:text-cyan-400 transition-colors"
+								/>
+							</div>
+						</div>
+					</Link>
+					<Link to="/explore" className="group">
+						<div className="rounded-xl bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 p-6 hover:border-purple-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/5">
+							<div className="flex items-center justify-between">
+								<div>
+									<h3 className="text-lg font-semibold text-white flex items-center gap-2">
+										<Search size={20} className="text-purple-400" />
+										Explore Media
+									</h3>
+									<p className="text-sm text-gray-400 mt-1">
+										Search and browse your indexed media collection
+									</p>
+								</div>
+								<ChevronRight
+									size={20}
+									className="text-gray-600 group-hover:text-purple-400 transition-colors"
+								/>
+							</div>
+						</div>
+					</Link>
+				</div>
 
-  return (
-    <div className="p-8 space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Beam Media Server</h1>
-      </div>
-
-      <div className="space-y-4">
-        <h2 className="text-2xl font-semibold">Libraries</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {data?.library?.libraries?.map((lib: any) => (
-            <div key={lib.id} className="p-6 border rounded-lg bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow">
-              <h3 className="font-semibold text-lg">{lib.name}</h3>
-              <p className="text-muted-foreground">{lib.description || "No description"}</p>
-              <p className="text-sm mt-2 text-gray-500">Items: {lib.size}</p>
-            </div>
-          ))}
-          {data?.library?.libraries?.length === 0 && (
-             <div className="p-8 text-center border border-dashed rounded-lg text-muted-foreground col-span-full">
-                No libraries found. Create one below to get started.
-             </div>
-          )}
-        </div>
-      </div>
-
-      <div className="max-w-md space-y-6 pt-6 border-t">
-         <h2 className="text-xl font-semibold">Create Library</h2>
-         <form onSubmit={handleCreate} className="space-y-4">
-            <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Movies" required />
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="rootPath">Root Path</Label>
-                <Input id="rootPath" value={rootPath} onChange={(e) => setRootPath(e.target.value)} placeholder="e.g. /media/movies" required />
-                <p className="text-xs text-muted-foreground">Absolute path on the server.</p>
-            </div>
-            <Button type="submit">Create Library</Button>
-         </form>
-      </div>
-    </div>
-  )
+				{/* Recent Libraries */}
+				{libraries.length > 0 && (
+					<div className="mt-12">
+						<div className="flex items-center justify-between mb-4">
+							<h2 className="text-xl font-semibold text-white">
+								Your Libraries
+							</h2>
+							<Link to="/libraries">
+								<Button
+									variant="ghost"
+									className="text-gray-400 hover:text-white text-sm"
+								>
+									View all
+									<ChevronRight size={14} className="ml-1" />
+								</Button>
+							</Link>
+						</div>
+						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+							{libraries.slice(0, 6).map((lib) => (
+								<Link
+									key={lib.id}
+									to="/libraries/$id"
+									params={{ id: lib.id }}
+									className="group"
+								>
+									<div className="rounded-xl bg-gray-800/30 border border-gray-700/50 p-4 hover:border-cyan-500/20 transition-all duration-200">
+										<h4 className="font-medium text-white truncate">
+											{lib.name}
+										</h4>
+										<p className="text-xs text-gray-500 mt-1">
+											{lib.size} files
+											{lib.description && ` • ${lib.description}`}
+										</p>
+									</div>
+								</Link>
+							))}
+						</div>
+					</div>
+				)}
+			</div>
+		</div>
+	);
 }

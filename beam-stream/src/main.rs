@@ -1,18 +1,16 @@
 use std::sync::atomic::Ordering;
 
-use async_graphql::http::GraphiQLSource;
 use eyre::{Result, eyre};
+use http::Method;
 use salvo::cors::Cors;
 use salvo::prelude::*;
 use tracing::info;
 
-use beam_stream::graphql::{AppSchema, SharedAppState, UserContext, create_schema};
-use beam_stream::{config::ServerConfig, graphql::AppContext};
+use beam_stream::config::ServerConfig;
+use beam_stream::graphql::create_schema;
 use routes::create_router;
 
 mod routes;
-
-const GRAPHQL_PATH: &str = "graphql";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -48,39 +46,42 @@ async fn main() -> Result<()> {
         .map_err(|e| eyre!("Failed to connect to database: {}", e))?;
     info!("Connected to database");
 
-    let (schema, state) = create_schema(&config, db).await;
+    // Initialize App Services and State
+    let services = beam_stream::state::AppServices::new(&config, db).await;
+    let state = beam_stream::state::AppState::new(config.clone(), services);
+
+    let schema = create_schema(state.clone());
 
     // Build CORS handler
     let cors = Cors::new()
-        .allow_origin(salvo::cors::Any)
-        .allow_methods(salvo::cors::Any)
-        .allow_headers(salvo::cors::Any)
+        .allow_origin(salvo::cors::AllowOrigin::mirror_request())
+        .allow_methods(vec![
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers(vec![
+            "authorization",
+            "content-type",
+            "accept",
+            "x-requested-with",
+        ])
+        .allow_credentials(true)
+        .max_age(3600) // Cache the preflight for 1 hour to reduce noise
         .into_handler();
 
     // Build API router
-    let api_router = create_router();
-
-    // Build auth router
-    let auth_router = Router::with_path("auth").push(routes::auth::auth_routes());
-
-    // Build GraphQL router
-    let graphql_router = Router::with_path(GRAPHQL_PATH)
-        .get(graphiql)
-        .post(graphql_handler);
-
-    // Combine all routers
-    let router = Router::new()
-        .hoop(cors)
-        .hoop(affix_state::inject(schema).inject(state))
-        .push(api_router)
-        .push(auth_router)
-        .push(graphql_router);
+    let router = create_router(state.clone(), schema);
 
     // Generate OpenAPI documentation
     let doc = OpenApi::new("Beam Stream API", "1.0.0").merge_router(&router);
     let router = router
         .push(doc.into_router("/api-doc/openapi.json"))
         .push(Scalar::new("/api-doc/openapi.json").into_router("/openapi"));
+
+    let service = Service::new(router).hoop(cors);
 
     info!("Binding to address: {}", &config.bind_address);
     let acceptor = TcpListener::new(config.bind_address.clone()).bind().await;
@@ -91,87 +92,11 @@ async fn main() -> Result<()> {
         config.bind_address
     );
     info!(
-        "GraphiQL interface available at http://{}/{}",
-        config.bind_address, GRAPHQL_PATH
+        "GraphiQL interface available at http://{}/graphql",
+        config.bind_address
     );
 
-    Server::new(acceptor).serve(router).await;
+    Server::new(acceptor).serve(service).await;
 
     Ok(())
-}
-
-#[handler]
-async fn graphiql(res: &mut Response) {
-    res.render(Text::Html(
-        GraphiQLSource::build()
-            .endpoint(&format!("/{}", GRAPHQL_PATH))
-            .finish(),
-    ));
-}
-
-#[handler]
-async fn graphql_handler(req: &mut Request, depot: &mut Depot, res: &mut Response) {
-    let schema = depot.obtain::<AppSchema>().unwrap().clone();
-    let state = depot.obtain::<SharedAppState>().unwrap().clone();
-
-    // Parse GraphQL request from body
-    let body_bytes = match req.payload().await {
-        Ok(bytes) => bytes.to_vec(),
-        Err(_) => {
-            res.status_code(StatusCode::BAD_REQUEST);
-            res.render(Text::Plain("Failed to read request body"));
-            return;
-        }
-    };
-
-    let gql_request: async_graphql::Request = match serde_json::from_slice(&body_bytes) {
-        Ok(r) => r,
-        Err(_) => {
-            res.status_code(StatusCode::BAD_REQUEST);
-            res.render(Text::Plain("Invalid GraphQL request"));
-            return;
-        }
-    };
-
-    let mut gql_request = gql_request;
-    let mut user_context = None;
-
-    if let Some(auth_header) = req.headers().get("Authorization")
-        && let Ok(auth_str) = auth_header.to_str()
-        && auth_str.starts_with("Bearer ")
-    {
-        let token = &auth_str[7..];
-
-        // Get AuthService from state
-        match state.services.auth.verify_token(token).await {
-            Ok(user) => {
-                user_context = Some(UserContext {
-                    user_id: user.user_id,
-                });
-            }
-            Err(e) => {
-                tracing::warn!("Failed to verify token: {}", e);
-            }
-        }
-    }
-
-    let app_context = AppContext::new(user_context);
-    gql_request = gql_request.data(app_context);
-
-    let gql_response = schema.execute(gql_request).await;
-
-    // Serialize response
-    match serde_json::to_vec(&gql_response) {
-        Ok(json_bytes) => {
-            res.headers_mut()
-                .insert("Content-Type", "application/json".parse().unwrap());
-            res.body(salvo::http::body::ResBody::Once(bytes::Bytes::from(
-                json_bytes,
-            )));
-        }
-        Err(_) => {
-            res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
-            res.render(Text::Plain("Failed to serialize GraphQL response"));
-        }
-    }
 }

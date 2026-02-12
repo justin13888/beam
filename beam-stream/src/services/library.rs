@@ -7,9 +7,9 @@ use tracing::{error, info, warn};
 use uuid::Uuid;
 use walkdir::WalkDir;
 
-use crate::models::Library;
 use crate::models::domain::Library as DomainLibrary;
 use crate::models::domain::file::{FileStatus, MediaFileContent, UpdateMediaFile};
+use crate::models::{Library, LibraryFile};
 use crate::services::hash::HashService;
 use crate::services::media_info::MediaInfoService;
 use crate::utils::metadata::{StreamMetadata, VideoFileMetadata};
@@ -30,6 +30,13 @@ pub trait LibraryService: Send + Sync + std::fmt::Debug {
     /// Returns None if user is not found
     async fn get_libraries(&self, user_id: String) -> Result<Vec<Library>, LibraryError>;
 
+    /// Get a single library by ID
+    async fn get_library_by_id(&self, library_id: String) -> Result<Option<Library>, LibraryError>;
+
+    /// Get all files within a library
+    async fn get_library_files(&self, library_id: String)
+    -> Result<Vec<LibraryFile>, LibraryError>;
+
     /// Create a new library
     async fn create_library(
         &self,
@@ -39,6 +46,9 @@ pub trait LibraryService: Send + Sync + std::fmt::Debug {
 
     /// Scan a library for new content
     async fn scan_library(&self, library_id: String) -> Result<u32, LibraryError>;
+
+    /// Delete a library by ID
+    async fn delete_library(&self, library_id: String) -> Result<bool, LibraryError>;
 }
 
 #[derive(Debug)]
@@ -381,6 +391,43 @@ impl LibraryService for LocalLibraryService {
         Ok(result)
     }
 
+    async fn get_library_by_id(&self, library_id: String) -> Result<Option<Library>, LibraryError> {
+        let lib_uuid = Uuid::parse_str(&library_id).map_err(|_| LibraryError::InvalidId)?;
+        let library = self.library_repo.find_by_id(lib_uuid).await?;
+
+        match library {
+            Some(lib) => {
+                let size = self.library_repo.count_files(lib.id).await?;
+                Ok(Some(Library {
+                    id: lib.id.to_string(),
+                    name: lib.name,
+                    description: lib.description,
+                    size: size as u32,
+                    last_scan_started_at: lib.last_scan_started_at,
+                    last_scan_finished_at: lib.last_scan_finished_at,
+                    last_scan_file_count: lib.last_scan_file_count,
+                }))
+            }
+            None => Ok(None),
+        }
+    }
+
+    async fn get_library_files(
+        &self,
+        library_id: String,
+    ) -> Result<Vec<LibraryFile>, LibraryError> {
+        let lib_uuid = Uuid::parse_str(&library_id).map_err(|_| LibraryError::InvalidId)?;
+
+        // Verify library exists
+        self.library_repo
+            .find_by_id(lib_uuid)
+            .await?
+            .ok_or(LibraryError::LibraryNotFound)?;
+
+        let files = self.file_repo.find_all_by_library(lib_uuid).await?;
+        Ok(files.into_iter().map(LibraryFile::from).collect())
+    }
+
     /// Create a new library
     async fn create_library(
         &self,
@@ -576,6 +623,20 @@ impl LibraryService for LocalLibraryService {
         );
 
         Ok(added_count)
+    }
+
+    async fn delete_library(&self, library_id: String) -> Result<bool, LibraryError> {
+        let lib_uuid = Uuid::parse_str(&library_id).map_err(|_| LibraryError::InvalidId)?;
+
+        // Verify library exists
+        self.library_repo
+            .find_by_id(lib_uuid)
+            .await?
+            .ok_or(LibraryError::LibraryNotFound)?;
+
+        // Delete the library itself
+        self.library_repo.delete(lib_uuid).await?;
+        Ok(true)
     }
 }
 

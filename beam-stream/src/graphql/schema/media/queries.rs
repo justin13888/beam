@@ -9,14 +9,15 @@ use crate::services::{
     MediaConnection, MediaSearchFilters, MediaSortField, MediaTypeFilter, SortOrder,
 };
 
-use crate::graphql::{AuthGuard, SharedAppState};
+use crate::graphql::AuthGuard;
+use crate::state::AppState;
 
 #[Object]
 impl MediaQuery {
     /// Fetch media metadata by ID
     #[graphql(guard = "AuthGuard")]
     async fn metadata(&self, ctx: &Context<'_>, id: ID) -> Result<Option<MediaMetadata>> {
-        let state = ctx.data::<SharedAppState>()?;
+        let state = ctx.data::<AppState>()?;
         let media_metadata = state.services.metadata.get_media_metadata(&id).await;
 
         Ok(media_metadata)
@@ -42,7 +43,7 @@ impl MediaQuery {
         #[graphql(desc = "Search query for title")] query: Option<String>,
         #[graphql(desc = "Filter by minimum rating (0-100)")] min_rating: Option<u32>,
     ) -> Result<MediaConnection> {
-        let state = ctx.data::<SharedAppState>()?;
+        let state = ctx.data::<AppState>()?;
 
         let filters = MediaSearchFilters {
             media_type,

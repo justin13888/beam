@@ -1,4 +1,4 @@
-use crate::graphql::AppContext;
+use crate::state::AppContext;
 use async_graphql::{Context, Guard, Result};
 
 pub struct AuthGuard;

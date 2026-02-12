@@ -12,9 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LibrariesRouteImport } from './routes/libraries'
 import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as MediaIdRouteImport } from './routes/media.$id'
+import { Route as LibrariesIdRouteImport } from './routes/libraries.$id'
 import { Route as DemoTanstackQueryRouteImport } from './routes/demo/tanstack-query'
 import { Route as DemoFormSimpleRouteImport } from './routes/demo/form.simple'
 import { Route as DemoFormAddressRouteImport } from './routes/demo/form.address'
@@ -34,6 +36,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LibrariesRoute = LibrariesRouteImport.update({
+  id: '/libraries',
+  path: '/libraries',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ExploreRoute = ExploreRouteImport.update({
   id: '/explore',
   path: '/explore',
@@ -48,6 +55,11 @@ const MediaIdRoute = MediaIdRouteImport.update({
   id: '/media/$id',
   path: '/media/$id',
   getParentRoute: () => rootRouteImport,
+} as any)
+const LibrariesIdRoute = LibrariesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => LibrariesRoute,
 } as any)
 const DemoTanstackQueryRoute = DemoTanstackQueryRouteImport.update({
   id: '/demo/tanstack-query',
@@ -68,10 +80,12 @@ const DemoFormAddressRoute = DemoFormAddressRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/explore': typeof ExploreRoute
+  '/libraries': typeof LibrariesRouteWithChildren
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/demo/tanstack-query': typeof DemoTanstackQueryRoute
+  '/libraries/$id': typeof LibrariesIdRoute
   '/media/$id': typeof MediaIdRoute
   '/demo/form/address': typeof DemoFormAddressRoute
   '/demo/form/simple': typeof DemoFormSimpleRoute
@@ -79,10 +93,12 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/explore': typeof ExploreRoute
+  '/libraries': typeof LibrariesRouteWithChildren
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/demo/tanstack-query': typeof DemoTanstackQueryRoute
+  '/libraries/$id': typeof LibrariesIdRoute
   '/media/$id': typeof MediaIdRoute
   '/demo/form/address': typeof DemoFormAddressRoute
   '/demo/form/simple': typeof DemoFormSimpleRoute
@@ -91,10 +107,12 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/explore': typeof ExploreRoute
+  '/libraries': typeof LibrariesRouteWithChildren
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/demo/tanstack-query': typeof DemoTanstackQueryRoute
+  '/libraries/$id': typeof LibrariesIdRoute
   '/media/$id': typeof MediaIdRoute
   '/demo/form/address': typeof DemoFormAddressRoute
   '/demo/form/simple': typeof DemoFormSimpleRoute
@@ -104,10 +122,12 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/explore'
+    | '/libraries'
     | '/login'
     | '/profile'
     | '/register'
     | '/demo/tanstack-query'
+    | '/libraries/$id'
     | '/media/$id'
     | '/demo/form/address'
     | '/demo/form/simple'
@@ -115,10 +135,12 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/explore'
+    | '/libraries'
     | '/login'
     | '/profile'
     | '/register'
     | '/demo/tanstack-query'
+    | '/libraries/$id'
     | '/media/$id'
     | '/demo/form/address'
     | '/demo/form/simple'
@@ -126,10 +148,12 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/explore'
+    | '/libraries'
     | '/login'
     | '/profile'
     | '/register'
     | '/demo/tanstack-query'
+    | '/libraries/$id'
     | '/media/$id'
     | '/demo/form/address'
     | '/demo/form/simple'
@@ -138,6 +162,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ExploreRoute: typeof ExploreRoute
+  LibrariesRoute: typeof LibrariesRouteWithChildren
   LoginRoute: typeof LoginRoute
   ProfileRoute: typeof ProfileRoute
   RegisterRoute: typeof RegisterRoute
@@ -170,6 +195,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/libraries': {
+      id: '/libraries'
+      path: '/libraries'
+      fullPath: '/libraries'
+      preLoaderRoute: typeof LibrariesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/explore': {
       id: '/explore'
       path: '/explore'
@@ -190,6 +222,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/media/$id'
       preLoaderRoute: typeof MediaIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/libraries/$id': {
+      id: '/libraries/$id'
+      path: '/$id'
+      fullPath: '/libraries/$id'
+      preLoaderRoute: typeof LibrariesIdRouteImport
+      parentRoute: typeof LibrariesRoute
     }
     '/demo/tanstack-query': {
       id: '/demo/tanstack-query'
@@ -215,9 +254,22 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface LibrariesRouteChildren {
+  LibrariesIdRoute: typeof LibrariesIdRoute
+}
+
+const LibrariesRouteChildren: LibrariesRouteChildren = {
+  LibrariesIdRoute: LibrariesIdRoute,
+}
+
+const LibrariesRouteWithChildren = LibrariesRoute._addFileChildren(
+  LibrariesRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ExploreRoute: ExploreRoute,
+  LibrariesRoute: LibrariesRouteWithChildren,
   LoginRoute: LoginRoute,
   ProfileRoute: ProfileRoute,
   RegisterRoute: RegisterRoute,

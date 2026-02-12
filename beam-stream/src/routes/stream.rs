@@ -1,4 +1,4 @@
-use beam_stream::graphql::SharedAppState;
+use beam_stream::state::AppState;
 use salvo::oapi::ToSchema;
 use salvo::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -29,7 +29,7 @@ pub struct StreamTokenResponse {
     )
 )]
 pub async fn get_stream_token(req: &mut Request, depot: &mut Depot, res: &mut Response) {
-    let state = depot.obtain::<SharedAppState>().unwrap();
+    let state = depot.obtain::<AppState>().unwrap();
     let id: String = req.param::<String>("id").unwrap_or_default();
 
     // Validate user auth
@@ -79,7 +79,7 @@ pub async fn get_stream_token(req: &mut Request, depot: &mut Depot, res: &mut Re
 )]
 #[tracing::instrument(skip_all)]
 pub async fn stream_mp4(req: &mut Request, depot: &mut Depot, res: &mut Response) {
-    let state = depot.obtain::<SharedAppState>().unwrap();
+    let state = depot.obtain::<AppState>().unwrap();
     let id: String = req.param::<String>("id").unwrap_or_default();
     let token: String = req.query::<String>("token").unwrap_or_default();
 

@@ -25,6 +25,8 @@ A high-performance streaming service built with Rust and Axum.
     podman compose -f compose.dependencies.yaml up -d
     ```
 
+- Make sure you applied [migrations](../migrations/README.md)
+
 - Start development server:
 
     ```bash

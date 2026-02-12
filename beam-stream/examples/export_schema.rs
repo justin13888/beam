@@ -2,6 +2,8 @@
 
 use beam_stream::config::ServerConfig;
 use beam_stream::graphql::create_schema;
+use beam_stream::state::AppServices;
+use beam_stream::state::AppState;
 use eyre::Result;
 use std::fs;
 
@@ -17,8 +19,12 @@ async fn main() -> Result<()> {
     // We can use the real DB since we expect it to be running in dev environment
     let db = sea_orm::Database::connect(&config.database_url).await?;
 
+    // Create Services
+    let services = AppServices::new(&config, db).await;
+    let state = AppState::new(config.clone(), services);
+
     // Create the GraphQL schema
-    let (schema, _state) = create_schema(&config, db).await;
+    let schema = create_schema(state);
 
     // Export as SDL
     let sdl = schema.sdl();

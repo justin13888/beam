@@ -91,6 +91,9 @@ pub trait LibraryRepository: Send + Sync + std::fmt::Debug {
         finished_at: Option<DateTime<Utc>>,
         file_count: Option<i32>,
     ) -> Result<(), DbErr>;
+
+    /// Deletes a library by its ID.
+    async fn delete(&self, id: Uuid) -> Result<(), DbErr>;
 }
 
 /// SQL-based implementation of the LibraryRepository trait.
@@ -189,6 +192,14 @@ impl LibraryRepository for SqlLibraryRepository {
         }
 
         library.update(&self.db).await?;
+        Ok(())
+    }
+
+    async fn delete(&self, id: Uuid) -> Result<(), DbErr> {
+        use crate::entities::library;
+        use sea_orm::EntityTrait;
+
+        library::Entity::delete_by_id(id).exec(&self.db).await?;
         Ok(())
     }
 }

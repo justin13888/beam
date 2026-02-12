@@ -1,7 +1,7 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 
 import { useState } from 'react'
-import { ClipboardType, Home, Menu, Network, X, LogIn, LogOut, User } from 'lucide-react'
+import { ClipboardType, Home, Menu, Network, X, LogIn, LogOut, User, Library } from 'lucide-react'
 import { useAuth } from '../hooks/auth'
 import { Button } from './ui/button'
 
@@ -29,11 +29,7 @@ export default function Header() {
             </button>
             <h1 className="text-xl font-semibold">
             <Link to="/">
-                <img
-                src="/tanstack-word-logo-white.svg"
-                alt="TanStack Logo"
-                className="h-10"
-                />
+                <span className="text-cyan-400 font-bold">Beam</span>
             </Link>
             </h1>
         </div>
@@ -97,6 +93,19 @@ export default function Header() {
           </Link>
 
           {/* Demo Links Start */}
+
+          <Link
+            to="/libraries"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Library size={20} />
+            <span className="font-medium">Libraries</span>
+          </Link>
 
           <Link
             to="/demo/form/simple"

@@ -1,7 +1,11 @@
+mod file;
+
 use async_graphql::SimpleObject;
 use chrono::{DateTime, Utc};
 use salvo::oapi::ToSchema;
 use serde::Serialize;
+
+pub use file::*;
 
 #[derive(Clone, Debug, Serialize, ToSchema, SimpleObject)]
 pub struct Library {

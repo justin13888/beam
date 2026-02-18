@@ -9,14 +9,12 @@ export interface User {
 
 export interface AuthResponse {
   token: string;
-  session_id: string;
   user: User;
 }
 
 export interface AuthContextType {
   user: User | null;
   token: string | null;
-  sessionId: string | null;
   isAuthenticated: boolean;
   login: (data: AuthResponse) => void;
   logout: () => void;
@@ -27,54 +25,51 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     // Initialize from localStorage
     const storedToken = localStorage.getItem("token");
-    const storedSessionId = localStorage.getItem("session_id");
     const storedUser = localStorage.getItem("user");
 
-    if (storedToken && storedSessionId && storedUser) {
+    if (storedToken && storedUser) {
       setToken(storedToken);
-      setSessionId(storedSessionId);
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error("Failed to parse user from local storage:", error);
+        localStorage.removeItem("user");
+        localStorage.removeItem("token");
+      }
     }
   }, []);
 
   const login = (data: AuthResponse) => {
     setToken(data.token);
-    setSessionId(data.session_id);
     setUser(data.user);
 
     localStorage.setItem("token", data.token);
-    localStorage.setItem("session_id", data.session_id);
     localStorage.setItem("user", JSON.stringify(data.user));
   };
 
   const logout = () => {
-    // Ideally call API to revoke session here
-    if (sessionId) {
-      fetch(`${env.C_STREAM_SERVER_URL}/auth/logout`, {
+    // Call API to revoke session (cookie)
+    fetch(`${env.C_STREAM_SERVER_URL}/auth/logout`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: sessionId }),
-      }).catch(console.error);
-    }
+        // usage of 'include' ensures cookies are sent
+        credentials: "include", 
+    }).catch(console.error);
 
     setToken(null);
-    setSessionId(null);
     setUser(null);
 
     localStorage.removeItem("token");
-    localStorage.removeItem("session_id");
     localStorage.removeItem("user");
   };
 
   const isAuthenticated = !!token;
 
   return (
-    <AuthContext.Provider value={{ user, token, sessionId, isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

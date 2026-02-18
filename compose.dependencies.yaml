@@ -18,8 +18,11 @@ services:
 
   valkey:
     image: docker.io/valkey/valkey:8
+    user: valkey
     ports:
       - "${VALKEY_HOST_PORT:-6379}:6379"
+    volumes:
+      - valkey_data:/data:Z
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
@@ -29,3 +32,4 @@ services:
 
 volumes:
   postgres:
+  valkey_data:

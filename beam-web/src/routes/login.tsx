@@ -29,6 +29,7 @@ function LoginPage() {
       const response = await fetch(`${env.C_STREAM_SERVER_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           username_or_email: username,
           password,

@@ -86,11 +86,11 @@ pub struct RedisSessionStore {
 
 impl RedisSessionStore {
     pub async fn new(redis_url: &str) -> Result<Self> {
-        let manager = RedisConnectionManager::new(redis_url).map_err(|e| SessionError::Redis(e))?;
+        let manager = RedisConnectionManager::new(redis_url).map_err(SessionError::Redis)?;
         let pool = Pool::builder()
             .build(manager)
             .await
-            .map_err(|e| SessionError::Redis(e))?;
+            .map_err(SessionError::Redis)?;
         Ok(Self { pool })
     }
 

@@ -48,11 +48,18 @@ pub struct StreamClaims {
 }
 
 #[derive(Debug, Serialize)]
-pub struct AuthResponse {
-    pub access_token: String,
-    pub session_id: String,
-    pub user_id: String,
+pub struct AuthUserResponse {
+    /// User ID of authenticated user
+    pub id: String,
     pub username: String,
+    pub email: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AuthResponse {
+    pub token: String,
+    pub session_id: String,
+    pub user: AuthUserResponse,
 }
 
 #[derive(Debug, Clone)]
@@ -241,10 +248,13 @@ impl AuthService for LocalAuthService {
         let (access_token, session_id) = self.create_session(&user, device_hash, ip).await?;
 
         Ok(AuthResponse {
-            access_token,
+            token: access_token,
             session_id,
-            user_id: user.id.to_string(),
-            username: user.username,
+            user: AuthUserResponse {
+                id: user.id.to_string(),
+                username: user.username,
+                email: user.email,
+            },
         })
     }
 
@@ -279,10 +289,13 @@ impl AuthService for LocalAuthService {
         let (access_token, session_id) = self.create_session(&user, device_hash, ip).await?;
 
         Ok(AuthResponse {
-            access_token,
+            token: access_token,
             session_id,
-            user_id: user.id.to_string(),
-            username: user.username,
+            user: AuthUserResponse {
+                id: user.id.to_string(),
+                username: user.username,
+                email: user.email,
+            },
         })
     }
 
@@ -314,10 +327,13 @@ impl AuthService for LocalAuthService {
             .ok_or(AuthError::InvalidCredentials)?;
 
         Ok(AuthResponse {
-            access_token,
+            token: access_token,
             session_id: session_id.to_string(),
-            user_id: session.user_id,
-            username: user.username,
+            user: AuthUserResponse {
+                id: session.user_id,
+                username: user.username,
+                email: user.email,
+            },
         })
     }
 

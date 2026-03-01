@@ -34,6 +34,7 @@ pub struct CreateAdminLog {
     pub details: Option<Value>,
 }
 
+#[cfg(feature = "entity")]
 impl From<beam_entity::admin_log::AdminLogLevel> for AdminLogLevel {
     fn from(level: beam_entity::admin_log::AdminLogLevel) -> Self {
         match level {
@@ -44,6 +45,7 @@ impl From<beam_entity::admin_log::AdminLogLevel> for AdminLogLevel {
     }
 }
 
+#[cfg(feature = "entity")]
 impl From<AdminLogLevel> for beam_entity::admin_log::AdminLogLevel {
     fn from(level: AdminLogLevel) -> Self {
         match level {
@@ -54,6 +56,7 @@ impl From<AdminLogLevel> for beam_entity::admin_log::AdminLogLevel {
     }
 }
 
+#[cfg(feature = "entity")]
 impl From<beam_entity::admin_log::AdminLogCategory> for AdminLogCategory {
     fn from(cat: beam_entity::admin_log::AdminLogCategory) -> Self {
         match cat {
@@ -64,6 +67,7 @@ impl From<beam_entity::admin_log::AdminLogCategory> for AdminLogCategory {
     }
 }
 
+#[cfg(feature = "entity")]
 impl From<AdminLogCategory> for beam_entity::admin_log::AdminLogCategory {
     fn from(cat: AdminLogCategory) -> Self {
         match cat {
@@ -74,6 +78,7 @@ impl From<AdminLogCategory> for beam_entity::admin_log::AdminLogCategory {
     }
 }
 
+#[cfg(feature = "entity")]
 impl From<beam_entity::admin_log::Model> for AdminLog {
     fn from(model: beam_entity::admin_log::Model) -> Self {
         Self {

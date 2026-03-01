@@ -24,6 +24,7 @@ pub struct CreateLibrary {
     pub description: Option<String>,
 }
 
+#[cfg(feature = "entity")]
 impl From<beam_entity::library::Model> for Library {
     fn from(model: beam_entity::library::Model) -> Self {
         Self {

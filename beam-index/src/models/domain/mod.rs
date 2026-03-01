@@ -1,14 +1,8 @@
-pub mod admin_log;
-pub mod file;
-pub mod library;
-pub mod movie;
-pub mod show;
-pub mod stream;
+pub use beam_domain::models::admin_log;
+pub use beam_domain::models::file;
+pub use beam_domain::models::library;
+pub use beam_domain::models::movie;
+pub use beam_domain::models::show;
+pub use beam_domain::models::stream;
 
-// Re-export all domain model types for convenience
-pub use admin_log::*;
-pub use file::*;
-pub use library::*;
-pub use movie::*;
-pub use show::*;
-pub use stream::*;
+pub use beam_domain::models::*;

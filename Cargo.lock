@@ -550,6 +550,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "beam-domain"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "beam-entity",
+ "chrono",
+ "mockall",
+ "parking_lot",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "uuid",
+]
+
+[[package]]
 name = "beam-entity"
 version = "0.1.0"
 dependencies = [
@@ -563,6 +579,7 @@ version = "0.1.0"
 dependencies = [
  "async-graphql",
  "async-trait",
+ "beam-domain",
  "beam-entity",
  "chrono",
  "color-eyre",
@@ -611,6 +628,7 @@ dependencies = [
  "async-stream",
  "async-trait",
  "beam-auth",
+ "beam-domain",
  "beam-entity",
  "beam-index",
  "beam-migration",

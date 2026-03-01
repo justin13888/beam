@@ -53,6 +53,7 @@ pub struct CreateEpisode {
     pub runtime: Option<Duration>,
 }
 
+#[cfg(feature = "entity")]
 impl From<beam_entity::show::Model> for Show {
     fn from(model: beam_entity::show::Model) -> Self {
         Self {
@@ -72,6 +73,7 @@ impl From<beam_entity::show::Model> for Show {
     }
 }
 
+#[cfg(feature = "entity")]
 impl From<beam_entity::season::Model> for Season {
     fn from(model: beam_entity::season::Model) -> Self {
         Self {
@@ -85,6 +87,7 @@ impl From<beam_entity::season::Model> for Season {
     }
 }
 
+#[cfg(feature = "entity")]
 impl From<beam_entity::episode::Model> for Episode {
     fn from(model: beam_entity::episode::Model) -> Self {
         Self {

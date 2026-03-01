@@ -1,2 +1,8 @@
-pub use beam_index::models::domain::*;
-pub use beam_index::models::domain::{admin_log, file, library, movie, show, stream};
+pub use beam_domain::models::admin_log;
+pub use beam_domain::models::file;
+pub use beam_domain::models::library;
+pub use beam_domain::models::movie;
+pub use beam_domain::models::show;
+pub use beam_domain::models::stream;
+
+pub use beam_domain::models::*;

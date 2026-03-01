@@ -7,6 +7,7 @@ publish = false
 default-run = "beam-index"
 
 [dependencies]
+beam-domain = { path = "../beam-domain", features = ["entity"] }
 beam-entity = { path = "../beam-entity" }
 async-graphql = { version = "7.0.17", features = ["chrono", "uuid"] }
 async-trait = { workspace = true }
@@ -43,7 +44,7 @@ tempfile = "3.23.0"
 tonic-build = { workspace = true }
 
 [features]
-test-utils = ["dep:mockall"]
+test-utils = ["dep:mockall", "beam-domain/test-utils"]
 
 [dependencies.mockall]
 version = "0.14.0"

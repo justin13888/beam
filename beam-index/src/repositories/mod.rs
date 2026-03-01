@@ -5,10 +5,10 @@ pub mod movie;
 pub mod show;
 pub mod stream;
 
-// Re-export all repository traits
-pub use admin_log::{AdminLogRepository, SqlAdminLogRepository};
-pub use file::{FileRepository, SqlFileRepository};
-pub use library::{LibraryRepository, SqlLibraryRepository};
-pub use movie::{MovieRepository, SqlMovieRepository};
-pub use show::{ShowRepository, SqlShowRepository};
-pub use stream::{MediaStreamRepository, SqlMediaStreamRepository};
+// SQL implementations
+pub use admin_log::SqlAdminLogRepository;
+pub use file::SqlFileRepository;
+pub use library::SqlLibraryRepository;
+pub use movie::SqlMovieRepository;
+pub use show::SqlShowRepository;
+pub use stream::SqlMediaStreamRepository;

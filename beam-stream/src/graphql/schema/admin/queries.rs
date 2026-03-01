@@ -2,9 +2,9 @@ use async_graphql::*;
 
 use crate::graphql::AuthGuard;
 use crate::graphql::guard::AdminGuard;
-use crate::models::domain::admin_log::{AdminLog, AdminLogCategory, AdminLogLevel};
 use crate::services::notification::AdminEvent;
 use crate::state::AppState;
+use beam_domain::models::admin_log::{AdminLog, AdminLogCategory, AdminLogLevel};
 
 #[derive(SimpleObject)]
 pub struct AdminLogEntry {

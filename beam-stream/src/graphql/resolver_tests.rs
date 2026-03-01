@@ -15,19 +15,12 @@ mod tests {
         service::{AuthService, LocalAuthService},
         session_store::in_memory::InMemorySessionStore,
     };
-    use beam_index::models::domain::movie::Movie;
-    use beam_index::models::domain::{Library as DomainLibrary, Show};
+    use beam_domain::models::movie::Movie;
+    use beam_domain::models::{Library as DomainLibrary, Show};
     use beam_index::services::index::MockIndexService;
     use uuid::Uuid;
 
     use crate::graphql::create_schema;
-    use crate::repositories::admin_log::AdminLogRepository;
-    use crate::repositories::admin_log::in_memory::InMemoryAdminLogRepository;
-    use crate::repositories::file::in_memory::InMemoryFileRepository;
-    use crate::repositories::library::in_memory::InMemoryLibraryRepository;
-    use crate::repositories::movie::in_memory::InMemoryMovieRepository;
-    use crate::repositories::show::in_memory::InMemoryShowRepository;
-    use crate::repositories::stream::in_memory::InMemoryMediaStreamRepository;
     use crate::services::admin_log::{AdminLogService, LocalAdminLogService};
     use crate::services::hash::HashService;
     use crate::services::library::{InMemoryPathValidator, LocalLibraryService};
@@ -35,6 +28,13 @@ mod tests {
     use crate::services::notification::{InMemoryNotificationService, NotificationService};
     use crate::services::transcode::TranscodeService;
     use crate::state::{AppContext, AppServices, AppState, UserContext};
+    use beam_domain::repositories::AdminLogRepository;
+    use beam_domain::repositories::admin_log::in_memory::InMemoryAdminLogRepository;
+    use beam_domain::repositories::file::in_memory::InMemoryFileRepository;
+    use beam_domain::repositories::library::in_memory::InMemoryLibraryRepository;
+    use beam_domain::repositories::movie::in_memory::InMemoryMovieRepository;
+    use beam_domain::repositories::show::in_memory::InMemoryShowRepository;
+    use beam_domain::repositories::stream::in_memory::InMemoryMediaStreamRepository;
 
     // ─── Stub implementations for services not exercised in resolver tests ────
 
@@ -380,7 +380,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_library_with_repo_failure_returns_error() {
-        use crate::repositories::library::MockLibraryRepository;
+        use beam_domain::repositories::library::MockLibraryRepository;
 
         let session_store = Arc::new(InMemorySessionStore::default());
         let user_repo = Arc::new(InMemoryUserRepository::default());
@@ -757,7 +757,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_logs_returns_entries_for_admin() {
-        use beam_index::models::domain::{AdminLogCategory, AdminLogLevel, CreateAdminLog};
+        use beam_domain::models::{AdminLogCategory, AdminLogLevel, CreateAdminLog};
 
         let ctx = build_test_context();
 

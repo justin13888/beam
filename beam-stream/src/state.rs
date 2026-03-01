@@ -87,18 +87,23 @@ impl AppServices {
         let hash_config = HashConfig::default();
 
         // Create repository implementations
-        let library_repo = Arc::new(crate::repositories::SqlLibraryRepository::new(db.clone()));
-        let file_repo: Arc<dyn crate::repositories::FileRepository> =
-            Arc::new(crate::repositories::SqlFileRepository::new(db.clone()));
-        let movie_repo: Arc<dyn crate::repositories::MovieRepository> =
-            Arc::new(crate::repositories::SqlMovieRepository::new(db.clone()));
-        let show_repo: Arc<dyn crate::repositories::ShowRepository> =
-            Arc::new(crate::repositories::SqlShowRepository::new(db.clone()));
-        let stream_repo: Arc<dyn crate::repositories::MediaStreamRepository> = Arc::new(
-            crate::repositories::SqlMediaStreamRepository::new(db.clone()),
+        let library_repo = Arc::new(beam_index::repositories::SqlLibraryRepository::new(
+            db.clone(),
+        ));
+        let file_repo: Arc<dyn beam_domain::repositories::FileRepository> =
+            Arc::new(beam_index::repositories::SqlFileRepository::new(db.clone()));
+        let movie_repo: Arc<dyn beam_domain::repositories::MovieRepository> = Arc::new(
+            beam_index::repositories::SqlMovieRepository::new(db.clone()),
+        );
+        let show_repo: Arc<dyn beam_domain::repositories::ShowRepository> =
+            Arc::new(beam_index::repositories::SqlShowRepository::new(db.clone()));
+        let stream_repo: Arc<dyn beam_domain::repositories::MediaStreamRepository> = Arc::new(
+            beam_index::repositories::SqlMediaStreamRepository::new(db.clone()),
         );
         let user_repo: Arc<dyn UserRepository> = Arc::new(SqlUserRepository::new(db.clone()));
-        let admin_log_repo = Arc::new(crate::repositories::SqlAdminLogRepository::new(db.clone()));
+        let admin_log_repo = Arc::new(beam_index::repositories::SqlAdminLogRepository::new(
+            db.clone(),
+        ));
 
         let notification_service = Arc::new(LocalNotificationService::new());
         let hash_service = Arc::new(LocalHashService::new(hash_config));

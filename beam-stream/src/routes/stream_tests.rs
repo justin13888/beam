@@ -21,7 +21,6 @@ mod tests {
     use tempfile::TempDir;
 
     use crate::models::{FileContentType, FileIndexStatus, LibraryFile};
-    use crate::repositories::admin_log::in_memory::InMemoryAdminLogRepository;
     use crate::routes::{get_stream_token, stream_mp4};
     use crate::services::admin_log::{AdminLogService, LocalAdminLogService};
     use crate::services::hash::HashService;
@@ -33,6 +32,7 @@ mod tests {
     use crate::services::notification::InMemoryNotificationService;
     use crate::services::transcode::TranscodeService;
     use crate::state::{AppServices, AppState};
+    use beam_domain::repositories::admin_log::in_memory::InMemoryAdminLogRepository;
 
     // ─── Constants ────────────────────────────────────────────────────────────
 

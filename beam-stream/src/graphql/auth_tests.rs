@@ -17,7 +17,6 @@ mod tests {
 
     use crate::graphql::create_schema;
     use crate::models::MediaMetadata;
-    use crate::repositories::admin_log::in_memory::InMemoryAdminLogRepository;
     use crate::services::admin_log::{AdminLogService, LocalAdminLogService};
     use crate::services::hash::HashService;
     use crate::services::library::{LibraryError, LibraryService};
@@ -28,6 +27,7 @@ mod tests {
     use crate::services::notification::InMemoryNotificationService;
     use crate::services::transcode::TranscodeService;
     use crate::state::{AppContext, AppServices, AppState, UserContext};
+    use beam_domain::repositories::admin_log::in_memory::InMemoryAdminLogRepository;
 
     // ─── Stub implementations for services not exercised during auth tests ───
 

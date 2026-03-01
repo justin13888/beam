@@ -14,12 +14,12 @@ pub enum FileIndexStatus {
     Unknown,
 }
 
-impl From<crate::models::domain::file::FileStatus> for FileIndexStatus {
-    fn from(status: crate::models::domain::file::FileStatus) -> Self {
+impl From<beam_domain::models::file::FileStatus> for FileIndexStatus {
+    fn from(status: beam_domain::models::file::FileStatus) -> Self {
         match status {
-            crate::models::domain::file::FileStatus::Known => FileIndexStatus::Known,
-            crate::models::domain::file::FileStatus::Changed => FileIndexStatus::Changed,
-            crate::models::domain::file::FileStatus::Unknown => FileIndexStatus::Unknown,
+            beam_domain::models::file::FileStatus::Known => FileIndexStatus::Known,
+            beam_domain::models::file::FileStatus::Changed => FileIndexStatus::Changed,
+            beam_domain::models::file::FileStatus::Unknown => FileIndexStatus::Unknown,
         }
     }
 }
@@ -60,9 +60,9 @@ pub struct LibraryFile {
     pub updated_at: DateTime<Utc>,
 }
 
-impl From<crate::models::domain::MediaFile> for LibraryFile {
-    fn from(f: crate::models::domain::MediaFile) -> Self {
-        let crate::models::domain::MediaFile {
+impl From<beam_domain::models::MediaFile> for LibraryFile {
+    fn from(f: beam_domain::models::MediaFile) -> Self {
+        let beam_domain::models::MediaFile {
             id,
             library_id,
             path,
@@ -77,10 +77,8 @@ impl From<crate::models::domain::MediaFile> for LibraryFile {
             updated_at,
         } = f;
         let content_type = match &content {
-            Some(crate::models::domain::MediaFileContent::Movie { .. }) => FileContentType::Movie,
-            Some(crate::models::domain::MediaFileContent::Episode { .. }) => {
-                FileContentType::Episode
-            }
+            Some(beam_domain::models::MediaFileContent::Movie { .. }) => FileContentType::Movie,
+            Some(beam_domain::models::MediaFileContent::Episode { .. }) => FileContentType::Episode,
             None => FileContentType::Unclassified,
         };
 

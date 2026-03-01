@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use serde_json::Value;
 use thiserror::Error;
 
-use crate::models::domain::{AdminLog, AdminLogCategory, AdminLogLevel, CreateAdminLog};
-use crate::repositories::AdminLogRepository;
+use beam_domain::models::{AdminLog, AdminLogCategory, AdminLogLevel, CreateAdminLog};
+use beam_domain::repositories::AdminLogRepository;
 
 #[derive(Debug, Error)]
 pub enum AdminLogError {
@@ -104,7 +104,7 @@ impl AdminLogService for NoOpAdminLogService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repositories::admin_log::in_memory::InMemoryAdminLogRepository;
+    use beam_domain::repositories::admin_log::in_memory::InMemoryAdminLogRepository;
 
     #[tokio::test]
     async fn test_log_and_retrieve() {

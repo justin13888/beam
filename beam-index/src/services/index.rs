@@ -11,16 +11,16 @@ use tracing::{error, info, warn};
 use uuid::Uuid;
 use walkdir::WalkDir;
 
-use crate::models::domain::admin_log::{AdminLogCategory, AdminLogLevel};
-use crate::models::domain::file::{FileStatus, MediaFileContent, UpdateMediaFile};
-use crate::repositories::{
-    FileRepository, LibraryRepository, MediaStreamRepository, MovieRepository, ShowRepository,
-};
 use crate::services::admin_log::AdminLogService;
 use crate::services::hash::HashService;
 use crate::services::media_info::MediaInfoService;
 use crate::services::notification::{AdminEvent, EventCategory, NotificationService};
 use crate::utils::metadata::{StreamMetadata, VideoFileMetadata};
+use beam_domain::models::admin_log::{AdminLogCategory, AdminLogLevel};
+use beam_domain::models::file::{FileStatus, MediaFileContent, UpdateMediaFile};
+use beam_domain::repositories::{
+    FileRepository, LibraryRepository, MediaStreamRepository, MovieRepository, ShowRepository,
+};
 
 static EPISODE_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)S(\d+)E(\d+)").expect("valid regex"));
@@ -96,10 +96,10 @@ impl LocalIndexService {
         file_id: Uuid,
         metadata: &VideoFileMetadata,
     ) -> Result<u32, IndexError> {
-        use crate::models::domain::stream::{
+        use beam_domain::models::stream::{
             AudioStreamMetadata, SubtitleStreamMetadata, VideoStreamMetadata,
         };
-        use crate::models::domain::{
+        use beam_domain::models::{
             CreateMediaStream, StreamMetadata as DomainStreamMetadata, StreamType,
         };
 
@@ -167,9 +167,7 @@ impl LocalIndexService {
         lib_uuid: Uuid,
         duration: Duration,
     ) -> Result<MediaFileContent, IndexError> {
-        use crate::models::domain::{
-            CreateEpisode, CreateMovie, CreateMovieEntry, MediaFileContent,
-        };
+        use beam_domain::models::{CreateEpisode, CreateMovie, CreateMovieEntry, MediaFileContent};
 
         let file_stem = path
             .file_stem()
@@ -255,7 +253,7 @@ impl LocalIndexService {
 
     /// Process a NEW file to add it to the library
     async fn process_new_file(&self, path: &Path, lib_uuid: Uuid) -> Result<bool, IndexError> {
-        use crate::models::domain::CreateMediaFile;
+        use beam_domain::models::CreateMediaFile;
 
         info!("Processing new file: {}", path.display());
 
@@ -420,7 +418,7 @@ impl IndexService for LocalIndexService {
 
         // Phase 1: Fetch existing files from DB
         let existing_files = self.file_repo.find_all_by_library(lib_uuid).await?;
-        let mut existing_map: HashMap<PathBuf, crate::models::domain::MediaFile> = existing_files
+        let mut existing_map: HashMap<PathBuf, beam_domain::models::MediaFile> = existing_files
             .into_iter()
             .map(|f| (f.path.clone(), f))
             .collect();
@@ -549,19 +547,6 @@ impl IndexService for LocalIndexService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::domain::{CreateLibrary, Library, MediaFile};
-    use crate::repositories::admin_log::AdminLogRepository;
-    use crate::repositories::admin_log::in_memory::InMemoryAdminLogRepository;
-    use crate::repositories::file::MockFileRepository;
-    use crate::repositories::file::in_memory::InMemoryFileRepository;
-    use crate::repositories::library::MockLibraryRepository;
-    use crate::repositories::library::in_memory::InMemoryLibraryRepository;
-    use crate::repositories::movie::MockMovieRepository;
-    use crate::repositories::movie::in_memory::InMemoryMovieRepository;
-    use crate::repositories::show::MockShowRepository;
-    use crate::repositories::show::in_memory::InMemoryShowRepository;
-    use crate::repositories::stream::MockMediaStreamRepository;
-    use crate::repositories::stream::in_memory::InMemoryMediaStreamRepository;
     use crate::services::admin_log::LocalAdminLogService;
     use crate::services::admin_log::NoOpAdminLogService;
     use crate::services::hash::MockHashService;
@@ -581,6 +566,19 @@ mod tests {
         SubtitleStreamMetadata as UtilSubtitleStream, VideoFileMetadata, VideoMetadata,
         VideoStreamMetadata as UtilVideoStream,
     };
+    use beam_domain::models::{CreateLibrary, Library, MediaFile};
+    use beam_domain::repositories::AdminLogRepository;
+    use beam_domain::repositories::admin_log::in_memory::InMemoryAdminLogRepository;
+    use beam_domain::repositories::file::MockFileRepository;
+    use beam_domain::repositories::file::in_memory::InMemoryFileRepository;
+    use beam_domain::repositories::library::MockLibraryRepository;
+    use beam_domain::repositories::library::in_memory::InMemoryLibraryRepository;
+    use beam_domain::repositories::movie::MockMovieRepository;
+    use beam_domain::repositories::movie::in_memory::InMemoryMovieRepository;
+    use beam_domain::repositories::show::MockShowRepository;
+    use beam_domain::repositories::show::in_memory::InMemoryShowRepository;
+    use beam_domain::repositories::stream::MockMediaStreamRepository;
+    use beam_domain::repositories::stream::in_memory::InMemoryMediaStreamRepository;
     use num::rational::Ratio;
     use std::path::PathBuf;
     use tempfile::TempDir;
@@ -774,12 +772,12 @@ mod tests {
         let s = &streams[0];
         assert_eq!(
             s.stream_type,
-            crate::models::domain::stream::StreamType::Video
+            beam_domain::models::stream::StreamType::Video
         );
         assert_eq!(s.codec, "h264");
         assert_eq!(s.index, 0);
 
-        if let crate::models::domain::stream::StreamMetadata::Video(v) = &s.metadata {
+        if let beam_domain::models::stream::StreamMetadata::Video(v) = &s.metadata {
             assert_eq!(v.width, 1920);
             assert_eq!(v.height, 1080);
             assert_eq!(v.frame_rate, Some(30.0));
@@ -808,11 +806,11 @@ mod tests {
         let s = &streams[0];
         assert_eq!(
             s.stream_type,
-            crate::models::domain::stream::StreamType::Audio
+            beam_domain::models::stream::StreamType::Audio
         );
         assert_eq!(s.codec, "aac");
 
-        if let crate::models::domain::stream::StreamMetadata::Audio(a) = &s.metadata {
+        if let beam_domain::models::stream::StreamMetadata::Audio(a) = &s.metadata {
             assert_eq!(a.language, Some("eng".to_string()));
         } else {
             panic!("expected Audio metadata");
@@ -835,7 +833,7 @@ mod tests {
             .unwrap();
 
         let streams = repo.find_by_file_id(file_id).await.unwrap();
-        if let crate::models::domain::stream::StreamMetadata::Audio(a) = &streams[0].metadata {
+        if let beam_domain::models::stream::StreamMetadata::Audio(a) = &streams[0].metadata {
             assert_eq!(a.language, None);
             assert_eq!(a.title, None);
         } else {
@@ -862,12 +860,12 @@ mod tests {
         let streams = repo.find_by_file_id(file_id).await.unwrap();
         assert_eq!(streams.len(), 2);
 
-        if let crate::models::domain::stream::StreamMetadata::Audio(a) = &streams[0].metadata {
+        if let beam_domain::models::stream::StreamMetadata::Audio(a) = &streams[0].metadata {
             assert_eq!(a.title, Some("Director Commentary".to_string()));
         } else {
             panic!("expected Audio metadata");
         }
-        if let crate::models::domain::stream::StreamMetadata::Audio(a) = &streams[1].metadata {
+        if let beam_domain::models::stream::StreamMetadata::Audio(a) = &streams[1].metadata {
             assert_eq!(a.title, None);
         } else {
             panic!("expected Audio metadata");
@@ -890,7 +888,7 @@ mod tests {
             .unwrap();
 
         let streams = repo.find_by_file_id(file_id).await.unwrap();
-        if let crate::models::domain::stream::StreamMetadata::Audio(a) = &streams[0].metadata {
+        if let beam_domain::models::stream::StreamMetadata::Audio(a) = &streams[0].metadata {
             assert_eq!(a.channels, 6);
             assert_eq!(a.sample_rate, 48_000);
         } else {
@@ -919,10 +917,10 @@ mod tests {
         let s = &streams[0];
         assert_eq!(
             s.stream_type,
-            crate::models::domain::stream::StreamType::Subtitle
+            beam_domain::models::stream::StreamType::Subtitle
         );
 
-        if let crate::models::domain::stream::StreamMetadata::Subtitle(sub) = &s.metadata {
+        if let beam_domain::models::stream::StreamMetadata::Subtitle(sub) = &s.metadata {
             assert_eq!(sub.language, Some("eng".to_string()));
             assert_eq!(sub.title, Some("English SDH".to_string()));
         } else {
@@ -949,7 +947,7 @@ mod tests {
         let streams = repo.find_by_file_id(file_id).await.unwrap();
         assert_eq!(streams.len(), 4);
 
-        use crate::models::domain::stream::StreamType;
+        use beam_domain::models::stream::StreamType;
         assert_eq!(streams[0].stream_type, StreamType::Video);
         assert_eq!(streams[1].stream_type, StreamType::Audio);
         assert_eq!(streams[2].stream_type, StreamType::Audio);
@@ -1416,7 +1414,7 @@ mod tests {
             .expect_create()
             .times(1)
             .returning(move |_| {
-                Ok(crate::models::domain::Movie {
+                Ok(beam_domain::models::Movie {
                     id: movie_id,
                     title: "Avatar".to_string(),
                     title_localized: None,
@@ -1445,7 +1443,7 @@ mod tests {
             .expect_create_entry()
             .times(1)
             .returning(move |_| {
-                Ok(crate::models::domain::MovieEntry {
+                Ok(beam_domain::models::MovieEntry {
                     id: entry_id,
                     library_id: Uuid::new_v4(),
                     movie_id: Uuid::new_v4(),
@@ -1457,7 +1455,7 @@ mod tests {
 
         let file_id = Uuid::new_v4();
         mock_file_repo.expect_create().times(1).returning(move |_| {
-            Ok(crate::models::domain::MediaFile {
+            Ok(beam_domain::models::MediaFile {
                 id: file_id,
                 library_id: Uuid::new_v4(),
                 path: PathBuf::from("test"),
@@ -1466,7 +1464,7 @@ mod tests {
                 mime_type: Some("video/mp4".to_string()),
                 duration: None,
                 container_format: None,
-                content: Some(crate::models::domain::MediaFileContent::Movie {
+                content: Some(beam_domain::models::MediaFileContent::Movie {
                     movie_entry_id: entry_id,
                 }),
                 status: FileStatus::Known,
@@ -1544,7 +1542,7 @@ mod tests {
             .times(1)
             .returning(|_| Ok(None));
         mock_show_repo.expect_create().times(1).returning(move |_| {
-            Ok(crate::models::domain::Show {
+            Ok(beam_domain::models::Show {
                 id: show_id,
                 title: "Season 1".to_string(),
                 title_localized: None,
@@ -1569,7 +1567,7 @@ mod tests {
             .expect_find_or_create_season()
             .times(1)
             .returning(move |_, _| {
-                Ok(crate::models::domain::Season {
+                Ok(beam_domain::models::Season {
                     id: season_id,
                     show_id,
                     season_number: 1,
@@ -1584,7 +1582,7 @@ mod tests {
             .expect_create_episode()
             .times(1)
             .returning(move |_| {
-                Ok(crate::models::domain::Episode {
+                Ok(beam_domain::models::Episode {
                     id: episode_id,
                     season_id,
                     episode_number: 1,
@@ -1599,7 +1597,7 @@ mod tests {
 
         let file_id = Uuid::new_v4();
         mock_file_repo.expect_create().times(1).returning(move |_| {
-            Ok(crate::models::domain::MediaFile {
+            Ok(beam_domain::models::MediaFile {
                 id: file_id,
                 library_id: Uuid::new_v4(),
                 path: PathBuf::from("test"),
@@ -1608,7 +1606,7 @@ mod tests {
                 mime_type: Some("video/x-matroska".to_string()),
                 duration: None,
                 container_format: None,
-                content: Some(crate::models::domain::MediaFileContent::Episode { episode_id }),
+                content: Some(beam_domain::models::MediaFileContent::Episode { episode_id }),
                 status: FileStatus::Known,
                 scanned_at: chrono::Utc::now(),
                 updated_at: chrono::Utc::now(),
@@ -2168,7 +2166,7 @@ mod tests {
         // File A: exists in DB and on disk with the same size → stays unchanged
         let stays_path = dir.path().join("stays.txt");
         std::fs::write(&stays_path, b"hello").unwrap(); // 5 bytes
-        let file_a = crate::models::domain::MediaFile {
+        let file_a = beam_domain::models::MediaFile {
             id: Uuid::new_v4(),
             library_id: library.id,
             path: stays_path.clone(),
@@ -2186,7 +2184,7 @@ mod tests {
 
         // File B: exists in DB only (phantom, no matching disk file) → will be removed
         let phantom_path = dir.path().join("phantom.txt");
-        let file_b = crate::models::domain::MediaFile {
+        let file_b = beam_domain::models::MediaFile {
             id: Uuid::new_v4(),
             library_id: library.id,
             path: phantom_path,

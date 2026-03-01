@@ -71,6 +71,7 @@ pub struct CreateMediaStream {
     pub metadata: StreamMetadata,
 }
 
+#[cfg(feature = "entity")]
 impl From<beam_entity::media_stream::Model> for MediaStream {
     fn from(model: beam_entity::media_stream::Model) -> Self {
         use beam_entity::media_stream::StreamType as DbStreamType;

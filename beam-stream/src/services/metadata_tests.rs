@@ -9,16 +9,16 @@ mod tests {
 
     use uuid::Uuid;
 
-    use crate::models::domain::movie::Movie;
-    use crate::models::domain::{Episode, MediaFile, MediaFileContent, MovieEntry, Season, Show};
-    use crate::repositories::file::in_memory::InMemoryFileRepository;
-    use crate::repositories::movie::in_memory::InMemoryMovieRepository;
-    use crate::repositories::show::in_memory::InMemoryShowRepository;
-    use crate::repositories::stream::in_memory::InMemoryMediaStreamRepository;
     use crate::services::metadata::{
         DbMetadataService, MediaFilter, MediaSearchFilters, MediaSortField, MetadataService,
         SortOrder,
     };
+    use beam_domain::models::movie::Movie;
+    use beam_domain::models::{Episode, MediaFile, MediaFileContent, MovieEntry, Season, Show};
+    use beam_domain::repositories::file::in_memory::InMemoryFileRepository;
+    use beam_domain::repositories::movie::in_memory::InMemoryMovieRepository;
+    use beam_domain::repositories::show::in_memory::InMemoryShowRepository;
+    use beam_domain::repositories::stream::in_memory::InMemoryMediaStreamRepository;
 
     // ---------------------------------------------------------------------------
     // Helper builders
@@ -57,7 +57,7 @@ mod tests {
             duration: Some(Duration::from_secs(7200)),
             container_format: Some("mp4".to_string()),
             content: Some(content),
-            status: crate::models::domain::FileStatus::Known,
+            status: beam_domain::models::FileStatus::Known,
             scanned_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         }

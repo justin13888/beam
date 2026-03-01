@@ -6,9 +6,9 @@ use thiserror::Error;
 use tracing::error;
 use uuid::Uuid;
 
-use crate::models::domain::Library as DomainLibrary;
 use crate::models::{Library, LibraryFile};
 use crate::services::notification::{AdminEvent, EventCategory, NotificationService};
+use beam_domain::models::Library as DomainLibrary;
 use beam_index::services::index::{IndexError, IndexService};
 
 pub trait PathValidator: Send + Sync + std::fmt::Debug {
@@ -140,8 +140,8 @@ pub trait LibraryService: Send + Sync + std::fmt::Debug {
 
 #[derive(Debug)]
 pub struct LocalLibraryService {
-    library_repo: Arc<dyn crate::repositories::LibraryRepository>,
-    file_repo: Arc<dyn crate::repositories::FileRepository>,
+    library_repo: Arc<dyn beam_domain::repositories::LibraryRepository>,
+    file_repo: Arc<dyn beam_domain::repositories::FileRepository>,
     video_dir: PathBuf,
     notification_service: Arc<dyn NotificationService>,
     index_service: Arc<dyn IndexService>,
@@ -150,8 +150,8 @@ pub struct LocalLibraryService {
 
 impl LocalLibraryService {
     pub fn new(
-        library_repo: Arc<dyn crate::repositories::LibraryRepository>,
-        file_repo: Arc<dyn crate::repositories::FileRepository>,
+        library_repo: Arc<dyn beam_domain::repositories::LibraryRepository>,
+        file_repo: Arc<dyn beam_domain::repositories::FileRepository>,
         video_dir: PathBuf,
         notification_service: Arc<dyn NotificationService>,
         index_service: Arc<dyn IndexService>,
@@ -249,7 +249,7 @@ impl LibraryService for LocalLibraryService {
         name: String,
         root_path: String,
     ) -> Result<Library, LibraryError> {
-        use crate::models::domain::CreateLibrary;
+        use beam_domain::models::CreateLibrary;
 
         let requested_path = PathBuf::from(&root_path);
 

@@ -11,21 +11,6 @@ pub struct StreamTokenResponse {
     pub token: String,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
-pub struct ErrorBody {
-    pub code: String,
-    pub message: String,
-}
-
-impl ErrorBody {
-    pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self {
-            code: code.into(),
-            message: message.into(),
-        }
-    }
-}
-
 #[derive(Debug, PartialEq)]
 pub(crate) enum RangeError {
     MissingBytesPrefix,
@@ -98,30 +83,30 @@ pub(crate) fn parse_byte_range(
 pub enum GetStreamTokenError {
     /// Unauthorized
     #[salvo(response(status_code = 401))]
-    Unauthorized(ErrorBody),
+    Unauthorized(String),
     /// Stream not found
     #[salvo(response(status_code = 404))]
-    NotFound(ErrorBody),
+    NotFound(String),
     /// Internal server error
     #[salvo(response(status_code = 500))]
-    InternalError(ErrorBody),
+    InternalError(String),
 }
 
 #[async_trait]
 impl Writer for GetStreamTokenError {
     async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
         match self {
-            Self::Unauthorized(body) => {
+            Self::Unauthorized(msg) => {
                 res.status_code(StatusCode::UNAUTHORIZED);
-                res.render(Json(body));
+                res.render(Text::Plain(msg));
             }
-            Self::NotFound(body) => {
+            Self::NotFound(msg) => {
                 res.status_code(StatusCode::NOT_FOUND);
-                res.render(Json(body));
+                res.render(Text::Plain(msg));
             }
-            Self::InternalError(body) => {
+            Self::InternalError(msg) => {
                 res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
-                res.render(Json(body));
+                res.render(Text::Plain(msg));
             }
         }
     }
@@ -131,44 +116,44 @@ impl Writer for GetStreamTokenError {
 pub enum StreamMp4Error {
     /// Unauthorized
     #[salvo(response(status_code = 401))]
-    Unauthorized(ErrorBody),
+    Unauthorized(String),
     /// File not found
     #[salvo(response(status_code = 404))]
-    NotFound(ErrorBody),
+    NotFound(String),
     /// Bad request
     #[salvo(response(status_code = 400))]
-    BadRequest(ErrorBody),
+    BadRequest(String),
     /// Range not satisfiable
     #[salvo(response(status_code = 416))]
-    RangeNotSatisfiable(ErrorBody),
+    RangeNotSatisfiable(String),
     /// Internal server error
     #[salvo(response(status_code = 500))]
-    InternalError(ErrorBody),
+    InternalError(String),
 }
 
 #[async_trait]
 impl Writer for StreamMp4Error {
     async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
         match self {
-            Self::Unauthorized(body) => {
+            Self::Unauthorized(msg) => {
                 res.status_code(StatusCode::UNAUTHORIZED);
-                res.render(Json(body));
+                res.render(Text::Plain(msg));
             }
-            Self::NotFound(body) => {
+            Self::NotFound(msg) => {
                 res.status_code(StatusCode::NOT_FOUND);
-                res.render(Json(body));
+                res.render(Text::Plain(msg));
             }
-            Self::BadRequest(body) => {
+            Self::BadRequest(msg) => {
                 res.status_code(StatusCode::BAD_REQUEST);
-                res.render(Json(body));
+                res.render(Text::Plain(msg));
             }
-            Self::RangeNotSatisfiable(body) => {
+            Self::RangeNotSatisfiable(msg) => {
                 res.status_code(StatusCode::RANGE_NOT_SATISFIABLE);
-                res.render(Json(body));
+                res.render(Text::Plain(msg));
             }
-            Self::InternalError(body) => {
+            Self::InternalError(msg) => {
                 res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
-                res.render(Json(body));
+                res.render(Text::Plain(msg));
             }
         }
     }
@@ -203,33 +188,23 @@ pub async fn get_stream_token(
             .verify_token(token)
             .await
             .map(|user| user.user_id)
-            .map_err(|_| {
-                GetStreamTokenError::Unauthorized(ErrorBody::new(
-                    "unauthorized",
-                    "Invalid or expired token",
-                ))
-            })?
+            .map_err(|_| GetStreamTokenError::Unauthorized("Invalid or expired token".into()))?
     } else {
-        return Err(GetStreamTokenError::Unauthorized(ErrorBody::new(
-            "unauthorized",
-            "Missing Authorization header",
-        )));
+        return Err(GetStreamTokenError::Unauthorized(
+            "Missing Authorization header".into(),
+        ));
     };
 
     // Verify the file exists before issuing a token
     match state.services.library.get_file_by_id(id.clone()).await {
         Ok(Some(_)) => {}
         Ok(None) => {
-            return Err(GetStreamTokenError::NotFound(ErrorBody::new(
-                "not_found",
-                "Stream not found",
-            )));
+            return Err(GetStreamTokenError::NotFound("Stream not found".into()));
         }
         Err(_) => {
-            return Err(GetStreamTokenError::InternalError(ErrorBody::new(
-                "internal_error",
-                "Failed to look up stream",
-            )));
+            return Err(GetStreamTokenError::InternalError(
+                "Failed to look up stream".into(),
+            ));
         }
     }
 
@@ -239,12 +214,7 @@ pub async fn get_stream_token(
         .auth
         .create_stream_token(&user_id, &id)
         .map(|token| Json(StreamTokenResponse { token }))
-        .map_err(|_| {
-            GetStreamTokenError::InternalError(ErrorBody::new(
-                "internal_error",
-                "Failed to create stream token",
-            ))
-        })
+        .map_err(|_| GetStreamTokenError::InternalError("Failed to create stream token".into()))
 }
 
 /// Stream via MP4 - serves AVFoundation-friendly fragmented MP4
@@ -270,27 +240,24 @@ pub async fn stream_mp4(
     {
         auth_str[7..].to_string()
     } else {
-        return Err(StreamMp4Error::Unauthorized(ErrorBody::new(
-            "unauthorized",
-            "Missing Authorization header",
-        )));
+        return Err(StreamMp4Error::Unauthorized(
+            "Missing Authorization header".into(),
+        ));
     };
 
     // Validate stream token
     match state.services.auth.verify_stream_token(&token) {
         Ok(stream_id) => {
             if stream_id != id {
-                return Err(StreamMp4Error::Unauthorized(ErrorBody::new(
-                    "unauthorized",
-                    "Token does not match stream ID",
-                )));
+                return Err(StreamMp4Error::Unauthorized(
+                    "Token does not match stream ID".into(),
+                ));
             }
         }
         Err(_) => {
-            return Err(StreamMp4Error::Unauthorized(ErrorBody::new(
-                "unauthorized",
-                "Invalid or expired stream token",
-            )));
+            return Err(StreamMp4Error::Unauthorized(
+                "Invalid or expired stream token".into(),
+            ));
         }
     }
 
@@ -300,16 +267,12 @@ pub async fn stream_mp4(
     let file = match state.services.library.get_file_by_id(id.clone()).await {
         Ok(Some(f)) => f,
         Ok(None) => {
-            return Err(StreamMp4Error::NotFound(ErrorBody::new(
-                "not_found",
-                "File not found",
-            )));
+            return Err(StreamMp4Error::NotFound("File not found".into()));
         }
         Err(_) => {
-            return Err(StreamMp4Error::InternalError(ErrorBody::new(
-                "internal_error",
-                "Failed to look up file",
-            )));
+            return Err(StreamMp4Error::InternalError(
+                "Failed to look up file".into(),
+            ));
         }
     };
 
@@ -318,10 +281,9 @@ pub async fn stream_mp4(
 
     if !source_video_path.exists() {
         error!("Source video file not found: {:?}", source_video_path);
-        return Err(StreamMp4Error::NotFound(ErrorBody::new(
-            "not_found",
-            "Source video file not found",
-        )));
+        return Err(StreamMp4Error::NotFound(
+            "Source video file not found".into(),
+        ));
     }
 
     // Generate MP4 if it doesn't exist or is outdated
@@ -335,10 +297,9 @@ pub async fn stream_mp4(
             .await
         {
             error!("Failed to generate MP4: {:?}", err);
-            return Err(StreamMp4Error::InternalError(ErrorBody::new(
-                "internal_error",
-                "Failed to generate MP4",
-            )));
+            return Err(StreamMp4Error::InternalError(
+                "Failed to generate MP4".into(),
+            ));
         }
 
         trace!("MP4 generation complete: {:?}", cache_mp4_path);
@@ -363,10 +324,9 @@ async fn serve_mp4_file(
         Ok(metadata) => metadata,
         Err(err) => {
             error!("Failed to get file metadata: {:?}", err);
-            return Err(StreamMp4Error::InternalError(ErrorBody::new(
-                "internal_error",
-                "Failed to get file metadata",
-            )));
+            return Err(StreamMp4Error::InternalError(
+                "Failed to get file metadata".into(),
+            ));
         }
     };
 
@@ -381,26 +341,21 @@ async fn serve_mp4_file(
         let range_str = match range_header.to_str() {
             Ok(s) => s,
             Err(_) => {
-                return Err(StreamMp4Error::BadRequest(ErrorBody::new(
-                    "invalid_request",
-                    "Invalid range header",
-                )));
+                return Err(StreamMp4Error::BadRequest("Invalid range header".into()));
             }
         };
 
         match parse_byte_range(range_str, file_size) {
             Ok((start, end)) => (start, end, StatusCode::PARTIAL_CONTENT),
             Err(RangeError::RangeNotSatisfiable { .. }) => {
-                return Err(StreamMp4Error::RangeNotSatisfiable(ErrorBody::new(
-                    "range_not_satisfiable",
-                    "Range not satisfiable",
-                )));
+                return Err(StreamMp4Error::RangeNotSatisfiable(
+                    "Range not satisfiable".into(),
+                ));
             }
             Err(_) => {
-                return Err(StreamMp4Error::BadRequest(ErrorBody::new(
-                    "invalid_request",
-                    "Invalid range specification",
-                )));
+                return Err(StreamMp4Error::BadRequest(
+                    "Invalid range specification".into(),
+                ));
             }
         }
     } else {
@@ -412,10 +367,7 @@ async fn serve_mp4_file(
         Ok(f) => f,
         Err(err) => {
             error!("Failed to open file: {:?}", err);
-            return Err(StreamMp4Error::InternalError(ErrorBody::new(
-                "internal_error",
-                "Failed to open file",
-            )));
+            return Err(StreamMp4Error::InternalError("Failed to open file".into()));
         }
     };
 
@@ -424,10 +376,9 @@ async fn serve_mp4_file(
         && let Err(err) = file.seek(std::io::SeekFrom::Start(start)).await
     {
         error!("Failed to seek in file: {:?}", err);
-        return Err(StreamMp4Error::InternalError(ErrorBody::new(
-            "internal_error",
-            "Failed to seek in file",
-        )));
+        return Err(StreamMp4Error::InternalError(
+            "Failed to seek in file".into(),
+        ));
     }
 
     let content_length = end - start + 1;

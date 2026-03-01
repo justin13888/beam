@@ -23,6 +23,13 @@ mod tests {
         session_id: String,
     }
 
+    /// Deserialization target for error responses.
+    #[derive(Debug, Deserialize)]
+    struct TestErrorBody {
+        code: String,
+        message: String,
+    }
+
     /// Build a `Service` backed entirely by in-memory implementations.
     ///
     /// Returns the `Service` (for `TestClient::send`), the concrete
@@ -78,19 +85,23 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn register_malformed_json_returns_400() {
+    async fn register_malformed_json_returns_400_with_error_body() {
         let (service, _, _) = make_test_service();
 
-        let res = TestClient::post("http://0.0.0.0/register")
+        let mut res = TestClient::post("http://0.0.0.0/register")
             .raw_json("not valid json{{")
             .send(&service)
             .await;
 
         assert_eq!(res.status_code, Some(StatusCode::BAD_REQUEST));
+
+        let body: TestErrorBody = res.take_json().await.unwrap();
+        assert_eq!(body.code, "invalid_request");
+        assert!(!body.message.is_empty());
     }
 
     #[tokio::test]
-    async fn register_duplicate_username_returns_400() {
+    async fn register_duplicate_username_returns_400_with_error_body() {
         let (service, _, _) = make_test_service();
 
         // First registration succeeds.
@@ -104,8 +115,8 @@ mod tests {
             .await;
         assert_eq!(res.status_code, Some(StatusCode::OK));
 
-        // Second registration with the same username should fail.
-        let res = TestClient::post("http://0.0.0.0/register")
+        // Second registration with the same username should fail with JSON error.
+        let mut res = TestClient::post("http://0.0.0.0/register")
             .json(&json!({
                 "username": "bob",
                 "email": "bob2@example.com",
@@ -114,6 +125,10 @@ mod tests {
             .send(&service)
             .await;
         assert_eq!(res.status_code, Some(StatusCode::BAD_REQUEST));
+
+        let body: TestErrorBody = res.take_json().await.unwrap();
+        assert_eq!(body.code, "user_already_exists");
+        assert!(!body.message.is_empty());
     }
 
     #[tokio::test]
@@ -193,7 +208,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn login_wrong_password_returns_401() {
+    async fn login_wrong_password_returns_401_with_error_body() {
         let (service, _, _) = make_test_service();
 
         TestClient::post("http://0.0.0.0/register")
@@ -205,7 +220,7 @@ mod tests {
             .send(&service)
             .await;
 
-        let res = TestClient::post("http://0.0.0.0/login")
+        let mut res = TestClient::post("http://0.0.0.0/login")
             .json(&json!({
                 "username_or_email": "frank",
                 "password": "wrong-password"
@@ -214,13 +229,17 @@ mod tests {
             .await;
 
         assert_eq!(res.status_code, Some(StatusCode::UNAUTHORIZED));
+
+        let body: TestErrorBody = res.take_json().await.unwrap();
+        assert_eq!(body.code, "invalid_credentials");
+        assert!(!body.message.is_empty());
     }
 
     #[tokio::test]
-    async fn login_unknown_username_returns_401() {
+    async fn login_unknown_username_returns_401_with_error_body() {
         let (service, _, _) = make_test_service();
 
-        let res = TestClient::post("http://0.0.0.0/login")
+        let mut res = TestClient::post("http://0.0.0.0/login")
             .json(&json!({
                 "username_or_email": "nonexistent",
                 "password": "password123"
@@ -229,18 +248,26 @@ mod tests {
             .await;
 
         assert_eq!(res.status_code, Some(StatusCode::UNAUTHORIZED));
+
+        let body: TestErrorBody = res.take_json().await.unwrap();
+        assert_eq!(body.code, "invalid_credentials");
+        assert!(!body.message.is_empty());
     }
 
     #[tokio::test]
-    async fn login_malformed_json_returns_400() {
+    async fn login_malformed_json_returns_400_with_error_body() {
         let (service, _, _) = make_test_service();
 
-        let res = TestClient::post("http://0.0.0.0/login")
+        let mut res = TestClient::post("http://0.0.0.0/login")
             .raw_json("{bad json")
             .send(&service)
             .await;
 
         assert_eq!(res.status_code, Some(StatusCode::BAD_REQUEST));
+
+        let body: TestErrorBody = res.take_json().await.unwrap();
+        assert_eq!(body.code, "invalid_request");
+        assert!(!body.message.is_empty());
     }
 
     // ─── POST /refresh ────────────────────────────────────────────────────────
@@ -300,27 +327,35 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn refresh_invalid_session_id_returns_401() {
+    async fn refresh_invalid_session_id_returns_401_with_error_body() {
         let (service, _, _) = make_test_service();
 
-        let res = TestClient::post("http://0.0.0.0/refresh")
+        let mut res = TestClient::post("http://0.0.0.0/refresh")
             .json(&json!({ "session_id": "00000000-0000-0000-0000-000000000000" }))
             .send(&service)
             .await;
 
         assert_eq!(res.status_code, Some(StatusCode::UNAUTHORIZED));
+
+        let body: TestErrorBody = res.take_json().await.unwrap();
+        assert_eq!(body.code, "session_not_found");
+        assert!(!body.message.is_empty());
     }
 
     #[tokio::test]
-    async fn refresh_no_session_returns_401() {
+    async fn refresh_no_session_returns_401_with_error_body() {
         let (service, _, _) = make_test_service();
 
         // No cookie, no body — the handler should return 401.
-        let res = TestClient::post("http://0.0.0.0/refresh")
+        let mut res = TestClient::post("http://0.0.0.0/refresh")
             .send(&service)
             .await;
 
         assert_eq!(res.status_code, Some(StatusCode::UNAUTHORIZED));
+
+        let body: TestErrorBody = res.take_json().await.unwrap();
+        assert_eq!(body.code, "unauthorized");
+        assert!(!body.message.is_empty());
     }
 
     // ─── POST /logout ─────────────────────────────────────────────────────────
@@ -425,26 +460,34 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn logout_all_with_invalid_jwt_returns_401() {
+    async fn logout_all_with_invalid_jwt_returns_401_with_error_body() {
         let (service, _, _) = make_test_service();
 
-        let res = TestClient::post("http://0.0.0.0/logout-all")
+        let mut res = TestClient::post("http://0.0.0.0/logout-all")
             .bearer_auth("not.a.real.token")
             .send(&service)
             .await;
 
         assert_eq!(res.status_code, Some(StatusCode::UNAUTHORIZED));
+
+        let body: TestErrorBody = res.take_json().await.unwrap();
+        assert_eq!(body.code, "unauthorized");
+        assert!(!body.message.is_empty());
     }
 
     #[tokio::test]
-    async fn logout_all_with_missing_auth_header_returns_401() {
+    async fn logout_all_with_missing_auth_header_returns_401_with_error_body() {
         let (service, _, _) = make_test_service();
 
-        let res = TestClient::post("http://0.0.0.0/logout-all")
+        let mut res = TestClient::post("http://0.0.0.0/logout-all")
             .send(&service)
             .await;
 
         assert_eq!(res.status_code, Some(StatusCode::UNAUTHORIZED));
+
+        let body: TestErrorBody = res.take_json().await.unwrap();
+        assert_eq!(body.code, "unauthorized");
+        assert!(!body.message.is_empty());
     }
 
     // ─── GET /sessions ────────────────────────────────────────────────────────
@@ -518,25 +561,33 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn list_sessions_with_invalid_jwt_returns_401() {
+    async fn list_sessions_with_invalid_jwt_returns_401_with_error_body() {
         let (service, _, _) = make_test_service();
 
-        let res = TestClient::get("http://0.0.0.0/sessions")
+        let mut res = TestClient::get("http://0.0.0.0/sessions")
             .bearer_auth("invalid.token.here")
             .send(&service)
             .await;
 
         assert_eq!(res.status_code, Some(StatusCode::UNAUTHORIZED));
+
+        let body: TestErrorBody = res.take_json().await.unwrap();
+        assert_eq!(body.code, "unauthorized");
+        assert!(!body.message.is_empty());
     }
 
     #[tokio::test]
-    async fn list_sessions_with_missing_auth_header_returns_401() {
+    async fn list_sessions_with_missing_auth_header_returns_401_with_error_body() {
         let (service, _, _) = make_test_service();
 
-        let res = TestClient::get("http://0.0.0.0/sessions")
+        let mut res = TestClient::get("http://0.0.0.0/sessions")
             .send(&service)
             .await;
 
         assert_eq!(res.status_code, Some(StatusCode::UNAUTHORIZED));
+
+        let body: TestErrorBody = res.take_json().await.unwrap();
+        assert_eq!(body.code, "unauthorized");
+        assert!(!body.message.is_empty());
     }
 }

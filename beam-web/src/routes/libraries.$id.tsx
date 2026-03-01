@@ -22,6 +22,7 @@ import {
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RouteError } from "../components/RouteError";
 import type { LibraryFile, MutationRoot, QueryRoot } from "../gql";
 import { FileContentType, FileIndexStatus } from "../gql";
 
@@ -59,6 +60,7 @@ const SCAN_LIBRARY = gql`
 `;
 
 export const Route = createFileRoute("/libraries/$id")({
+	errorComponent: RouteError,
 	component: LibraryDetailPage,
 });
 
@@ -193,6 +195,7 @@ function LibraryDetailPage() {
 	const [scanLibrary] = useMutation<MutationRoot, { id: string }>(SCAN_LIBRARY);
 
 	const [scanning, setScanning] = useState(false);
+	const [scanError, setScanError] = useState<string | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [statusFilter, setStatusFilter] = useState<FileIndexStatus | "all">(
 		"all",
@@ -201,12 +204,13 @@ function LibraryDetailPage() {
 	const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
 	const handleScan = async () => {
+		setScanError(null);
 		setScanning(true);
 		try {
 			await scanLibrary({ variables: { id } });
 			refetch();
 		} catch (err) {
-			console.error(err);
+			setScanError(err instanceof Error ? err.message : "Scan failed");
 		} finally {
 			setScanning(false);
 		}
@@ -287,57 +291,10 @@ function LibraryDetailPage() {
 		return { known, changed, unknown, totalSize };
 	}, [files]);
 
-	if (loading) {
-		return (
-			<div className="min-h-screen bg-linear-to-br from-gray-950 via-gray-900 to-gray-950 flex items-center justify-center">
-				<div className="flex items-center gap-3 text-gray-400">
-					<RefreshCw className="animate-spin" size={20} />
-					<span className="text-lg">Loading library...</span>
-				</div>
-			</div>
-		);
-	}
-
-	if (error) {
-		return (
-			<div className="min-h-screen bg-linear-to-br from-gray-950 via-gray-900 to-gray-950 flex items-center justify-center">
-				<div className="text-center space-y-4">
-					<p className="text-red-400 text-lg">Error: {error.message}</p>
-					<Link to="/libraries">
-						<Button
-							variant="outline"
-							className="border-gray-600 text-gray-300 hover:bg-gray-800"
-						>
-							Back to Libraries
-						</Button>
-					</Link>
-				</div>
-			</div>
-		);
-	}
-
-	if (!library) {
-		return (
-			<div className="min-h-screen bg-linear-to-br from-gray-950 via-gray-900 to-gray-950 flex items-center justify-center">
-				<div className="text-center space-y-4">
-					<p className="text-gray-400 text-lg">Library not found</p>
-					<Link to="/libraries">
-						<Button
-							variant="outline"
-							className="border-gray-600 text-gray-300 hover:bg-gray-800"
-						>
-							Back to Libraries
-						</Button>
-					</Link>
-				</div>
-			</div>
-		);
-	}
-
 	return (
 		<div className="min-h-screen bg-linear-to-br from-gray-950 via-gray-900 to-gray-950">
 			<div className="max-w-7xl mx-auto px-6 py-8">
-				{/* Breadcrumb & Header */}
+				{/* Breadcrumb & Header — always visible */}
 				<div className="mb-6">
 					<Link
 						to="/libraries"
@@ -348,195 +305,260 @@ function LibraryDetailPage() {
 					</Link>
 					<div className="flex items-center justify-between">
 						<div>
-							<h1 className="text-3xl font-bold text-white">{library.name}</h1>
-							{library.description && (
+							{loading ? (
+								<div className="h-9 w-48 bg-gray-700/40 rounded animate-pulse" />
+							) : (
+								<h1 className="text-3xl font-bold text-white">
+									{library?.name ?? (error ? "Library" : "Library not found")}
+								</h1>
+							)}
+							{!loading && !error && library?.description && (
 								<p className="text-gray-400 mt-1">{library.description}</p>
 							)}
 						</div>
-						<div className="flex gap-3">
-							<Button
-								onClick={() => refetch()}
-								variant="outline"
-								className="border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white"
-							>
-								<RefreshCw size={16} className="mr-2" />
-								Refresh
-							</Button>
-							<Button
-								onClick={handleScan}
-								disabled={scanning}
-								className="bg-cyan-600 hover:bg-cyan-700 text-white"
-							>
-								{scanning ? (
-									<RefreshCw size={16} className="animate-spin mr-2" />
-								) : (
-									<Scan size={16} className="mr-2" />
-								)}
-								{scanning ? "Scanning..." : "Scan Library"}
-							</Button>
-						</div>
-					</div>
-				</div>
-
-				{/* Stats Cards */}
-				<div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-					<div className="rounded-xl bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 p-4">
-						<div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
-							<FileVideo size={14} />
-							Total Files
-						</div>
-						<div className="text-2xl font-bold text-white">{files.length}</div>
-					</div>
-					<div className="rounded-xl bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 p-4">
-						<div className="flex items-center gap-2 text-emerald-400 text-sm mb-1">
-							<CheckCircle2 size={14} />
-							Indexed
-						</div>
-						<div className="text-2xl font-bold text-white">{stats.known}</div>
-					</div>
-					<div className="rounded-xl bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 p-4">
-						<div className="flex items-center gap-2 text-amber-400 text-sm mb-1">
-							<AlertTriangle size={14} />
-							Changed / Unknown
-						</div>
-						<div className="text-2xl font-bold text-white">
-							{stats.changed + stats.unknown}
-						</div>
-					</div>
-					<div className="rounded-xl bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 p-4">
-						<div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
-							<HardDrive size={14} />
-							Total Size
-						</div>
-						<div className="text-2xl font-bold text-white">
-							{formatFileSize(stats.totalSize)}
-						</div>
-					</div>
-				</div>
-
-				{/* Scan Info */}
-				{library.lastScanFinishedAt && (
-					<div className="flex items-center gap-4 text-sm text-gray-400 mb-6 px-1">
-						<span className="flex items-center gap-1.5">
-							<Clock size={14} />
-							Last scanned {formatTimeAgo(library.lastScanFinishedAt)}
-						</span>
-						{library.lastScanFileCount != null && (
-							<span>• {library.lastScanFileCount} files processed</span>
-						)}
-					</div>
-				)}
-
-				{/* Search & Filter Bar */}
-				<div className="flex flex-col sm:flex-row gap-3 mb-6">
-					<div className="relative flex-1">
-						<Search
-							size={16}
-							className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
-						/>
-						<Input
-							placeholder="Search files by path, type, or format..."
-							value={searchQuery}
-							onChange={(e) => setSearchQuery(e.target.value)}
-							className="pl-10 bg-gray-800/60 border-gray-700 text-white placeholder-gray-500 focus:border-cyan-500"
-						/>
-					</div>
-					<div className="flex items-center gap-2">
-						<Filter size={16} className="text-gray-500" />
-						<div className="flex rounded-lg border border-gray-700 overflow-hidden">
-							{(
-								[
-									{ label: "All", value: "all" },
-									{ label: "Indexed", value: FileIndexStatus.Known },
-									{ label: "Changed", value: FileIndexStatus.Changed },
-									{ label: "Unknown", value: FileIndexStatus.Unknown },
-								] as const
-							).map((opt) => (
-								<button
-									key={opt.value}
-									type="button"
-									onClick={() => setStatusFilter(opt.value)}
-									className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-										statusFilter === opt.value
-											? "bg-cyan-600 text-white"
-											: "bg-gray-800/60 text-gray-400 hover:bg-gray-700 hover:text-white"
-									}`}
+						<div className="flex flex-col items-end gap-2">
+							<div className="flex gap-3">
+								<Button
+									onClick={() => refetch()}
+									variant="outline"
+									className="border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white"
 								>
-									{opt.label}
-								</button>
+									<RefreshCw size={16} className="mr-2" />
+									Refresh
+								</Button>
+								<Button
+									onClick={handleScan}
+									disabled={scanning || loading || !!error || !library}
+									className="bg-cyan-600 hover:bg-cyan-700 text-white"
+								>
+									{scanning ? (
+										<RefreshCw size={16} className="animate-spin mr-2" />
+									) : (
+										<Scan size={16} className="mr-2" />
+									)}
+									{scanning ? "Scanning..." : "Scan Library"}
+								</Button>
+							</div>
+							{scanError && (
+								<p className="text-red-400 text-sm">Scan failed: {scanError}</p>
+							)}
+						</div>
+					</div>
+				</div>
+
+				{/* Body — conditional on loading/error/not-found */}
+				{loading ? (
+					<>
+						{/* Skeleton stats cards */}
+						<div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+							{[...Array(4)].map((_, i) => (
+								<div
+									// biome-ignore lint/suspicious/noArrayIndexKey: skeleton placeholders have no identity
+									key={i}
+									className="rounded-xl bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 p-4 animate-pulse"
+								>
+									<div className="h-4 bg-gray-700/50 rounded mb-3 w-24" />
+									<div className="h-8 bg-gray-700/50 rounded w-12" />
+								</div>
 							))}
 						</div>
+						{/* Skeleton table */}
+						<div className="rounded-xl border border-gray-700/50 overflow-hidden animate-pulse">
+							<div className="h-10 bg-gray-800/60 border-b border-gray-700/50" />
+							{[...Array(5)].map((_, i) => (
+								<div
+									// biome-ignore lint/suspicious/noArrayIndexKey: skeleton placeholders have no identity
+									key={i}
+									className="h-12 border-b border-gray-800/50 bg-gray-800/20"
+								/>
+							))}
+						</div>
+					</>
+				) : error ? (
+					<div className="text-center py-12 space-y-4">
+						<p className="text-red-400 text-lg">Error: {error.message}</p>
+						<Button
+							onClick={() => refetch()}
+							variant="outline"
+							className="border-gray-600 text-gray-300 hover:bg-gray-800"
+						>
+							Retry
+						</Button>
 					</div>
-				</div>
-
-				{/* File Table */}
-				{filteredFiles.length === 0 ? (
-					<div className="text-center py-16 rounded-xl border border-dashed border-gray-700 bg-gray-800/20">
-						<FileQuestion className="mx-auto text-gray-600 mb-4" size={48} />
-						<h3 className="text-lg font-semibold text-gray-400 mb-2">
-							{files.length === 0
-								? "No files indexed"
-								: "No files match your filters"}
-						</h3>
-						<p className="text-gray-500">
-							{files.length === 0
-								? "Run a scan to index files in this library."
-								: "Try adjusting your search or filter criteria."}
-						</p>
+				) : !library ? (
+					<div className="text-center py-12">
+						<p className="text-gray-400 text-lg">Library not found</p>
 					</div>
 				) : (
-					<div className="rounded-xl border border-gray-700/50 overflow-hidden">
-						{/* Table Header */}
-						<div className="grid grid-cols-[1fr_100px_80px_100px_100px] gap-4 px-5 py-3 bg-gray-800/60 border-b border-gray-700/50">
-							<SortHeader
-								label="File Path"
-								field="path"
-								currentField={sortField}
-								currentDirection={sortDirection}
-								onSort={handleSort}
-							/>
-							<SortHeader
-								label="Size"
-								field="sizeBytes"
-								currentField={sortField}
-								currentDirection={sortDirection}
-								onSort={handleSort}
-							/>
-							<SortHeader
-								label="Status"
-								field="status"
-								currentField={sortField}
-								currentDirection={sortDirection}
-								onSort={handleSort}
-							/>
-							<SortHeader
-								label="Content"
-								field="contentType"
-								currentField={sortField}
-								currentDirection={sortDirection}
-								onSort={handleSort}
-							/>
-							<SortHeader
-								label="Updated"
-								field="updatedAt"
-								currentField={sortField}
-								currentDirection={sortDirection}
-								onSort={handleSort}
-							/>
+					<>
+						{/* Stats Cards */}
+						<div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+							<div className="rounded-xl bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 p-4">
+								<div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
+									<FileVideo size={14} />
+									Total Files
+								</div>
+								<div className="text-2xl font-bold text-white">
+									{files.length}
+								</div>
+							</div>
+							<div className="rounded-xl bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 p-4">
+								<div className="flex items-center gap-2 text-emerald-400 text-sm mb-1">
+									<CheckCircle2 size={14} />
+									Indexed
+								</div>
+								<div className="text-2xl font-bold text-white">
+									{stats.known}
+								</div>
+							</div>
+							<div className="rounded-xl bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 p-4">
+								<div className="flex items-center gap-2 text-amber-400 text-sm mb-1">
+									<AlertTriangle size={14} />
+									Changed / Unknown
+								</div>
+								<div className="text-2xl font-bold text-white">
+									{stats.changed + stats.unknown}
+								</div>
+							</div>
+							<div className="rounded-xl bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 p-4">
+								<div className="flex items-center gap-2 text-gray-400 text-sm mb-1">
+									<HardDrive size={14} />
+									Total Size
+								</div>
+								<div className="text-2xl font-bold text-white">
+									{formatFileSize(stats.totalSize)}
+								</div>
+							</div>
 						</div>
 
-						{/* Table Body */}
-						<div className="divide-y divide-gray-800/50">
-							{filteredFiles.map((file) => (
-								<FileRow key={file.id} file={file} />
-							))}
+						{/* Scan Info */}
+						{library.lastScanFinishedAt && (
+							<div className="flex items-center gap-4 text-sm text-gray-400 mb-6 px-1">
+								<span className="flex items-center gap-1.5">
+									<Clock size={14} />
+									Last scanned {formatTimeAgo(library.lastScanFinishedAt)}
+								</span>
+								{library.lastScanFileCount != null && (
+									<span>• {library.lastScanFileCount} files processed</span>
+								)}
+							</div>
+						)}
+
+						{/* Search & Filter Bar */}
+						<div className="flex flex-col sm:flex-row gap-3 mb-6">
+							<div className="relative flex-1">
+								<Search
+									size={16}
+									className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
+								/>
+								<Input
+									placeholder="Search files by path, type, or format..."
+									value={searchQuery}
+									onChange={(e) => setSearchQuery(e.target.value)}
+									className="pl-10 bg-gray-800/60 border-gray-700 text-white placeholder-gray-500 focus:border-cyan-500"
+								/>
+							</div>
+							<div className="flex items-center gap-2">
+								<Filter size={16} className="text-gray-500" />
+								<div className="flex rounded-lg border border-gray-700 overflow-hidden">
+									{(
+										[
+											{ label: "All", value: "all" },
+											{ label: "Indexed", value: FileIndexStatus.Known },
+											{ label: "Changed", value: FileIndexStatus.Changed },
+											{ label: "Unknown", value: FileIndexStatus.Unknown },
+										] as const
+									).map((opt) => (
+										<button
+											key={opt.value}
+											type="button"
+											onClick={() => setStatusFilter(opt.value)}
+											className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+												statusFilter === opt.value
+													? "bg-cyan-600 text-white"
+													: "bg-gray-800/60 text-gray-400 hover:bg-gray-700 hover:text-white"
+											}`}
+										>
+											{opt.label}
+										</button>
+									))}
+								</div>
+							</div>
 						</div>
 
-						{/* Footer */}
-						<div className="px-5 py-3 bg-gray-800/40 border-t border-gray-700/50 text-xs text-gray-500">
-							Showing {filteredFiles.length} of {files.length} files
-						</div>
-					</div>
+						{/* File Table */}
+						{filteredFiles.length === 0 ? (
+							<div className="text-center py-16 rounded-xl border border-dashed border-gray-700 bg-gray-800/20">
+								<FileQuestion
+									className="mx-auto text-gray-600 mb-4"
+									size={48}
+								/>
+								<h3 className="text-lg font-semibold text-gray-400 mb-2">
+									{files.length === 0
+										? "No files indexed"
+										: "No files match your filters"}
+								</h3>
+								<p className="text-gray-500">
+									{files.length === 0
+										? "Run a scan to index files in this library."
+										: "Try adjusting your search or filter criteria."}
+								</p>
+							</div>
+						) : (
+							<div className="rounded-xl border border-gray-700/50 overflow-hidden">
+								{/* Table Header */}
+								<div className="grid grid-cols-[1fr_100px_80px_100px_100px] gap-4 px-5 py-3 bg-gray-800/60 border-b border-gray-700/50">
+									<SortHeader
+										label="File Path"
+										field="path"
+										currentField={sortField}
+										currentDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortHeader
+										label="Size"
+										field="sizeBytes"
+										currentField={sortField}
+										currentDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortHeader
+										label="Status"
+										field="status"
+										currentField={sortField}
+										currentDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortHeader
+										label="Content"
+										field="contentType"
+										currentField={sortField}
+										currentDirection={sortDirection}
+										onSort={handleSort}
+									/>
+									<SortHeader
+										label="Updated"
+										field="updatedAt"
+										currentField={sortField}
+										currentDirection={sortDirection}
+										onSort={handleSort}
+									/>
+								</div>
+
+								{/* Table Body */}
+								<div className="divide-y divide-gray-800/50">
+									{filteredFiles.map((file) => (
+										<FileRow key={file.id} file={file} />
+									))}
+								</div>
+
+								{/* Footer */}
+								<div className="px-5 py-3 bg-gray-800/40 border-t border-gray-700/50 text-xs text-gray-500">
+									Showing {filteredFiles.length} of {files.length} files
+								</div>
+							</div>
+						)}
+					</>
 				)}
 			</div>
 		</div>

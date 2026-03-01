@@ -2,14 +2,8 @@ use async_trait::async_trait;
 use sea_orm::*;
 use uuid::Uuid;
 
-pub use beam_domain::repositories::AdminLogRepository;
-
-#[cfg(any(test, feature = "test-utils"))]
-pub mod in_memory {
-    pub use beam_domain::repositories::admin_log::in_memory::*;
-}
-
-use crate::models::domain::{AdminLog, CreateAdminLog};
+use beam_domain::models::{AdminLog, CreateAdminLog};
+use beam_domain::repositories::AdminLogRepository;
 
 #[derive(Debug)]
 pub struct SqlAdminLogRepository {

@@ -1,14 +1,14 @@
 #[cfg(test)]
 mod tests {
-    use crate::repositories::file::MockFileRepository;
-    use crate::repositories::library::MockLibraryRepository;
     use crate::services::library::{
         InMemoryPathValidator, LibraryError, LibraryService, LocalLibraryService,
     };
     use crate::services::notification::{InMemoryNotificationService, NotificationService};
-    use beam_index::models::domain::{FileStatus, Library as DomainLibrary, MediaFile};
-    use beam_index::repositories::file::in_memory::InMemoryFileRepository;
-    use beam_index::repositories::library::in_memory::InMemoryLibraryRepository;
+    use beam_domain::models::{FileStatus, Library as DomainLibrary, MediaFile};
+    use beam_domain::repositories::file::MockFileRepository;
+    use beam_domain::repositories::file::in_memory::InMemoryFileRepository;
+    use beam_domain::repositories::library::MockLibraryRepository;
+    use beam_domain::repositories::library::in_memory::InMemoryLibraryRepository;
     use beam_index::services::index::{IndexError, MockIndexService};
     use sea_orm::DbErr;
     use std::path::PathBuf;

@@ -2,17 +2,8 @@ use async_trait::async_trait;
 use sea_orm::{DatabaseConnection, DbErr};
 use uuid::Uuid;
 
-pub use beam_domain::repositories::MovieRepository;
-
-#[cfg(any(test, feature = "test-utils"))]
-pub use beam_domain::repositories::movie::MockMovieRepository;
-
-#[cfg(any(test, feature = "test-utils"))]
-pub mod in_memory {
-    pub use beam_domain::repositories::movie::in_memory::*;
-}
-
-use crate::models::domain::{CreateMovie, CreateMovieEntry, Movie, MovieEntry};
+use beam_domain::models::{CreateMovie, CreateMovieEntry, Movie, MovieEntry};
+use beam_domain::repositories::MovieRepository;
 
 /// SQL-based implementation of the MovieRepository trait.
 #[derive(Debug, Clone)]

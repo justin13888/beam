@@ -496,7 +496,6 @@ mod tests {
         use salvo::prelude::*;
         use salvo::test::TestClient;
 
-        use crate::repositories::admin_log::in_memory::InMemoryAdminLogRepository;
         use crate::services::admin_log::{AdminLogService, LocalAdminLogService};
         use crate::services::hash::HashService;
         use crate::services::library::{LibraryError, LibraryService};
@@ -507,6 +506,7 @@ mod tests {
         use crate::services::notification::InMemoryNotificationService;
         use crate::services::transcode::TranscodeService;
         use crate::state::{AppServices, AppState};
+        use beam_domain::repositories::admin_log::in_memory::InMemoryAdminLogRepository;
 
         // ── Stubs ─────────────────────────────────────────────────────────
 

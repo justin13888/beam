@@ -2,17 +2,8 @@ use async_trait::async_trait;
 use sea_orm::{DatabaseConnection, DbErr};
 use uuid::Uuid;
 
-pub use beam_domain::repositories::ShowRepository;
-
-#[cfg(any(test, feature = "test-utils"))]
-pub use beam_domain::repositories::show::MockShowRepository;
-
-#[cfg(any(test, feature = "test-utils"))]
-pub mod in_memory {
-    pub use beam_domain::repositories::show::in_memory::*;
-}
-
-use crate::models::domain::{CreateEpisode, Episode, Season, Show};
+use beam_domain::models::{CreateEpisode, Episode, Season, Show};
+use beam_domain::repositories::ShowRepository;
 
 /// SQL-based implementation of the ShowRepository trait.
 #[derive(Debug, Clone)]

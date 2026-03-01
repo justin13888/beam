@@ -2,17 +2,8 @@ use async_trait::async_trait;
 use sea_orm::{DatabaseConnection, DbErr};
 use uuid::Uuid;
 
-pub use beam_domain::repositories::MediaStreamRepository;
-
-#[cfg(any(test, feature = "test-utils"))]
-pub use beam_domain::repositories::stream::MockMediaStreamRepository;
-
-#[cfg(any(test, feature = "test-utils"))]
-pub mod in_memory {
-    pub use beam_domain::repositories::stream::in_memory::*;
-}
-
-use crate::models::domain::{CreateMediaStream, MediaStream};
+use beam_domain::models::{CreateMediaStream, MediaStream};
+use beam_domain::repositories::MediaStreamRepository;
 
 /// SQL-based implementation of the MediaStreamRepository trait.
 #[derive(Debug, Clone)]
@@ -29,7 +20,7 @@ impl SqlMediaStreamRepository {
 #[async_trait]
 impl MediaStreamRepository for SqlMediaStreamRepository {
     async fn insert_streams(&self, streams: Vec<CreateMediaStream>) -> Result<u32, DbErr> {
-        use crate::models::domain::{StreamMetadata, StreamType};
+        use beam_domain::models::{StreamMetadata, StreamType};
         use beam_entity::media_stream;
         use sea_orm::{ActiveModelTrait, Set};
 

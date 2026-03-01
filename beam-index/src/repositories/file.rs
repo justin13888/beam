@@ -2,16 +2,8 @@ use async_trait::async_trait;
 use sea_orm::{DatabaseConnection, DbErr};
 use uuid::Uuid;
 
-use crate::models::domain::{CreateMediaFile, MediaFile, MediaFileContent, UpdateMediaFile};
-pub use beam_domain::repositories::FileRepository;
-
-#[cfg(any(test, feature = "test-utils"))]
-pub use beam_domain::repositories::file::MockFileRepository;
-
-#[cfg(any(test, feature = "test-utils"))]
-pub mod in_memory {
-    pub use beam_domain::repositories::file::in_memory::*;
-}
+use beam_domain::models::{CreateMediaFile, MediaFile, MediaFileContent, UpdateMediaFile};
+use beam_domain::repositories::FileRepository;
 
 /// SQL-based implementation of the FileRepository trait.
 #[derive(Debug, Clone)]

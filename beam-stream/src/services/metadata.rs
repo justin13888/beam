@@ -8,7 +8,9 @@ use crate::models::{
     EpisodeMetadata, ExternalIdentifiers, MediaMetadata, MovieMetadata, Ratings, SeasonMetadata,
     ShowDates, ShowMetadata, Title,
 };
-use crate::repositories::{FileRepository, MediaStreamRepository, MovieRepository, ShowRepository};
+use beam_domain::repositories::{
+    FileRepository, MediaStreamRepository, MovieRepository, ShowRepository,
+};
 
 #[async_trait::async_trait]
 pub trait MetadataService: Send + Sync + std::fmt::Debug {
@@ -59,7 +61,7 @@ impl DbMetadataService {
     /// Build MediaMetadata for a movie by its DB model
     async fn build_movie_metadata(
         &self,
-        movie: crate::models::domain::Movie,
+        movie: beam_domain::models::Movie,
     ) -> Result<MediaMetadata, MetadataError> {
         // Get all movie entries, then files for each, then streams
         let entries = self
@@ -142,7 +144,7 @@ impl DbMetadataService {
     /// Build MediaMetadata for a show by its DB model
     async fn build_show_metadata(
         &self,
-        show: crate::models::domain::Show,
+        show: beam_domain::models::Show,
     ) -> Result<MediaMetadata, MetadataError> {
         let seasons_domain = self
             .show_repo
@@ -237,11 +239,11 @@ impl DbMetadataService {
 
 /// Build a `MediaStreamMetadata` from domain `MediaStream` records
 fn build_media_stream_metadata_from_domain_streams(
-    streams: &[crate::models::domain::MediaStream],
+    streams: &[beam_domain::models::MediaStream],
 ) -> crate::models::MediaStreamMetadata {
-    use crate::models::domain::stream::StreamMetadata;
     use crate::models::{AudioTrack, MediaStreamMetadata, SubtitleTrack, VideoTrack};
     use crate::models::{OutputAudioCodec, OutputSubtitleCodec, OutputVideoCodec, Resolution};
+    use beam_domain::models::stream::StreamMetadata;
     use rust_decimal::Decimal;
 
     let mut video_tracks = Vec::new();

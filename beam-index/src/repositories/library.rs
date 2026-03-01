@@ -3,16 +3,8 @@ use chrono::{DateTime, Utc};
 use sea_orm::{DatabaseConnection, DbErr};
 use uuid::Uuid;
 
-use crate::models::domain::{CreateLibrary, Library};
-pub use beam_domain::repositories::LibraryRepository;
-
-#[cfg(any(test, feature = "test-utils"))]
-pub use beam_domain::repositories::library::MockLibraryRepository;
-
-#[cfg(any(test, feature = "test-utils"))]
-pub mod in_memory {
-    pub use beam_domain::repositories::library::in_memory::*;
-}
+use beam_domain::models::{CreateLibrary, Library};
+use beam_domain::repositories::LibraryRepository;
 
 /// SQL-based implementation of the LibraryRepository trait.
 #[derive(Debug, Clone)]

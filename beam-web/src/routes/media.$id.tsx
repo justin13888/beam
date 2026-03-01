@@ -176,8 +176,10 @@ function RouteComponent() {
 		const loadVideo = async () => {
 			// 1. Exchange the user's auth token for a short-lived stream token.
 			const tokenRes = await apiClient.POST("/v1/stream/{id}/token", {
-				params: { path: { id } },
-				headers: { Authorization: `Bearer ${token}` },
+				params: {
+					path: { id },
+					header: { Authorization: `Bearer ${token}` },
+				},
 			});
 
 			if (cancelled) return;

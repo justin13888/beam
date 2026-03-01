@@ -16,6 +16,7 @@ import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RouteError } from "../components/RouteError";
 import type { Library, MutationRoot, QueryRoot } from "../gql";
 
 const GET_LIBRARIES = gql`
@@ -59,6 +60,7 @@ const DELETE_LIBRARY = gql`
 `;
 
 export const Route = createFileRoute("/libraries")({
+	errorComponent: RouteError,
 	component: LibrariesPage,
 });
 
@@ -113,10 +115,10 @@ function ScanStatusBadge({ library }: { library: Library }) {
 
 function LibrariesPage() {
 	const { data, loading, error, refetch } = useQuery<QueryRoot>(GET_LIBRARIES);
-	const [createLibrary, { loading: creating }] = useMutation<
-		MutationRoot,
-		{ name: string; rootPath: string }
-	>(CREATE_LIBRARY);
+	const [createLibrary, { loading: creating, error: createError }] =
+		useMutation<MutationRoot, { name: string; rootPath: string }>(
+			CREATE_LIBRARY,
+		);
 	const [scanLibrary] = useMutation<MutationRoot, { id: string }>(SCAN_LIBRARY);
 	const [deleteLibrary] = useMutation<MutationRoot, { id: string }>(
 		DELETE_LIBRARY,
@@ -128,6 +130,8 @@ function LibrariesPage() {
 	const libNameId = useId();
 	const libRootPathId = useId();
 	const [scanningIds, setScanningIds] = useState<Set<string>>(new Set());
+	const [scanErrors, setScanErrors] = useState<Record<string, string>>({});
+	const [deleteErrors, setDeleteErrors] = useState<Record<string, string>>({});
 
 	const handleCreate = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -137,18 +141,26 @@ function LibrariesPage() {
 			setName("");
 			setRootPath("");
 			setShowCreateForm(false);
-		} catch (err) {
-			console.error(err);
+		} catch {
+			// createError from the hook surfaces the error in the form
 		}
 	};
 
 	const handleScan = async (libraryId: string) => {
+		setScanErrors((prev) => {
+			const next = { ...prev };
+			delete next[libraryId];
+			return next;
+		});
 		setScanningIds((prev) => new Set(prev).add(libraryId));
 		try {
 			await scanLibrary({ variables: { id: libraryId } });
 			refetch();
 		} catch (err) {
-			console.error(err);
+			setScanErrors((prev) => ({
+				...prev,
+				[libraryId]: err instanceof Error ? err.message : "Scan failed",
+			}));
 		} finally {
 			setScanningIds((prev) => {
 				const next = new Set(prev);
@@ -166,41 +178,21 @@ function LibrariesPage() {
 		) {
 			return;
 		}
+		setDeleteErrors((prev) => {
+			const next = { ...prev };
+			delete next[libraryId];
+			return next;
+		});
 		try {
 			await deleteLibrary({ variables: { id: libraryId } });
 			refetch();
 		} catch (err) {
-			console.error(err);
+			setDeleteErrors((prev) => ({
+				...prev,
+				[libraryId]: err instanceof Error ? err.message : "Delete failed",
+			}));
 		}
 	};
-
-	if (loading) {
-		return (
-			<div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 flex items-center justify-center">
-				<div className="flex items-center gap-3 text-gray-400">
-					<RefreshCw className="animate-spin" size={20} />
-					<span className="text-lg">Loading libraries...</span>
-				</div>
-			</div>
-		);
-	}
-
-	if (error) {
-		return (
-			<div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 flex items-center justify-center">
-				<div className="text-center space-y-4">
-					<p className="text-red-400 text-lg">Error: {error.message}</p>
-					<Button
-						onClick={() => refetch()}
-						variant="outline"
-						className="border-gray-600 text-gray-300 hover:bg-gray-800"
-					>
-						Retry
-					</Button>
-				</div>
-			</div>
-		);
-	}
 
 	const libraries = data?.libraries ?? [];
 
@@ -296,11 +288,32 @@ function LibrariesPage() {
 								</Button>
 							</div>
 						</form>
+						{createError && (
+							<p className="text-red-400 text-sm mt-3">
+								Error: {createError.message}
+							</p>
+						)}
 					</div>
 				)}
 
 				{/* Libraries Grid */}
-				{libraries.length === 0 ? (
+				{loading ? (
+					<div className="flex items-center gap-3 text-gray-400 py-12">
+						<RefreshCw className="animate-spin" size={20} />
+						<span className="text-lg">Loading libraries...</span>
+					</div>
+				) : error ? (
+					<div className="text-center py-12 space-y-4">
+						<p className="text-red-400 text-lg">Error: {error.message}</p>
+						<Button
+							onClick={() => refetch()}
+							variant="outline"
+							className="border-gray-600 text-gray-300 hover:bg-gray-800"
+						>
+							Retry
+						</Button>
+					</div>
+				) : libraries.length === 0 ? (
 					<div className="text-center py-20 rounded-xl border border-dashed border-gray-700 bg-gray-800/20">
 						<FolderOpen className="mx-auto text-gray-600 mb-4" size={56} />
 						<h3 className="text-xl font-semibold text-gray-400 mb-2">
@@ -392,6 +405,18 @@ function LibrariesPage() {
 										<Trash2 size={16} />
 									</Button>
 								</div>
+
+								{/* Inline mutation errors */}
+								{scanErrors[lib.id] && (
+									<p className="px-5 pb-3 text-red-400 text-xs">
+										Scan failed: {scanErrors[lib.id]}
+									</p>
+								)}
+								{deleteErrors[lib.id] && (
+									<p className="px-5 pb-3 text-red-400 text-xs">
+										Delete failed: {deleteErrors[lib.id]}
+									</p>
+								)}
 							</div>
 						))}
 					</div>

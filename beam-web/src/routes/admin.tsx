@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { RouteError } from "../components/RouteError";
 import { useAuth } from "../hooks/auth";
 
 const GET_ADMIN_LOGS = gql`
@@ -51,6 +52,7 @@ export const Route = createFileRoute("/admin")({
 			throw redirect({ to: "/" });
 		}
 	},
+	errorComponent: RouteError,
 	component: AdminPage,
 });
 

@@ -90,7 +90,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn register_duplicate_username_returns_400() {
+    async fn register_duplicate_username_returns_409() {
         let (service, _, _) = make_test_service();
 
         // First registration succeeds.
@@ -104,7 +104,7 @@ mod tests {
             .await;
         assert_eq!(res.status_code, Some(StatusCode::OK));
 
-        // Second registration with the same username should fail.
+        // Second registration with the same username → 409 Conflict.
         let res = TestClient::post("http://0.0.0.0/register")
             .json(&json!({
                 "username": "bob",
@@ -113,7 +113,7 @@ mod tests {
             }))
             .send(&service)
             .await;
-        assert_eq!(res.status_code, Some(StatusCode::BAD_REQUEST));
+        assert_eq!(res.status_code, Some(StatusCode::CONFLICT));
     }
 
     #[tokio::test]

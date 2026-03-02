@@ -3,7 +3,7 @@
 mod routes_tests;
 
 use crate::utils::service::AuthService;
-use salvo::oapi::ToSchema;
+use salvo::oapi::{ToResponses, ToSchema};
 use salvo::prelude::*;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -51,30 +51,172 @@ pub struct RefreshRequest {
     pub session_id: String,
 }
 
+// ── Error enums ───────────────────────────────────────────────────────────────
+
+#[derive(ToResponses)]
+pub enum RegisterError {
+    /// Invalid request body
+    #[salvo(response(status_code = 400))]
+    BadRequest(String),
+    /// User already exists
+    #[salvo(response(status_code = 409))]
+    Conflict(String),
+}
+
+#[async_trait]
+impl Writer for RegisterError {
+    async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+        match self {
+            Self::BadRequest(msg) => {
+                res.status_code(StatusCode::BAD_REQUEST);
+                res.render(Text::Plain(msg));
+            }
+            Self::Conflict(msg) => {
+                res.status_code(StatusCode::CONFLICT);
+                res.render(Text::Plain(msg));
+            }
+        }
+    }
+}
+
+#[derive(ToResponses)]
+pub enum LoginError {
+    /// Invalid request body
+    #[salvo(response(status_code = 400))]
+    BadRequest(String),
+    /// Invalid credentials
+    #[salvo(response(status_code = 401))]
+    Unauthorized(String),
+}
+
+#[async_trait]
+impl Writer for LoginError {
+    async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+        match self {
+            Self::BadRequest(msg) => {
+                res.status_code(StatusCode::BAD_REQUEST);
+                res.render(Text::Plain(msg));
+            }
+            Self::Unauthorized(msg) => {
+                res.status_code(StatusCode::UNAUTHORIZED);
+                res.render(Text::Plain(msg));
+            }
+        }
+    }
+}
+
+#[derive(ToResponses)]
+pub enum RefreshError {
+    /// Missing or invalid session
+    #[salvo(response(status_code = 401))]
+    Unauthorized(String),
+}
+
+#[async_trait]
+impl Writer for RefreshError {
+    async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+        match self {
+            Self::Unauthorized(msg) => {
+                res.status_code(StatusCode::UNAUTHORIZED);
+                res.render(Text::Plain(msg));
+            }
+        }
+    }
+}
+
+#[derive(ToResponses)]
+pub enum LogoutError {
+    /// Internal server error
+    #[salvo(response(status_code = 500))]
+    InternalError(String),
+}
+
+#[async_trait]
+impl Writer for LogoutError {
+    async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+        match self {
+            Self::InternalError(msg) => {
+                res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
+                res.render(Text::Plain(msg));
+            }
+        }
+    }
+}
+
+#[derive(ToResponses)]
+pub enum LogoutAllError {
+    /// Invalid or missing JWT
+    #[salvo(response(status_code = 401))]
+    Unauthorized(String),
+    /// Internal server error
+    #[salvo(response(status_code = 500))]
+    InternalError(String),
+}
+
+#[async_trait]
+impl Writer for LogoutAllError {
+    async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+        match self {
+            Self::Unauthorized(msg) => {
+                res.status_code(StatusCode::UNAUTHORIZED);
+                res.render(Text::Plain(msg));
+            }
+            Self::InternalError(msg) => {
+                res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
+                res.render(Text::Plain(msg));
+            }
+        }
+    }
+}
+
+#[derive(ToResponses)]
+pub enum ListSessionsError {
+    /// Invalid or missing JWT
+    #[salvo(response(status_code = 401))]
+    Unauthorized(String),
+    /// Internal server error
+    #[salvo(response(status_code = 500))]
+    InternalError(String),
+}
+
+#[async_trait]
+impl Writer for ListSessionsError {
+    async fn write(self, _req: &mut Request, _depot: &mut Depot, res: &mut Response) {
+        match self {
+            Self::Unauthorized(msg) => {
+                res.status_code(StatusCode::UNAUTHORIZED);
+                res.render(Text::Plain(msg));
+            }
+            Self::InternalError(msg) => {
+                res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
+                res.render(Text::Plain(msg));
+            }
+        }
+    }
+}
+
+// ── Endpoints ─────────────────────────────────────────────────────────────────
+
 /// Register a new user account
 #[endpoint(
     tags("auth"),
     request_body = RegisterRequest,
-    responses(
-        (status_code = 200, body = crate::utils::service::AuthResponse, description = "User registered successfully"),
-        (status_code = 400, description = "Invalid request or user already exists")
-    )
 )]
-pub async fn register(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+pub async fn register(
+    req: &mut Request,
+    depot: &mut Depot,
+    res: &mut Response,
+) -> Result<Json<crate::utils::service::AuthResponse>, RegisterError> {
     let auth = depot.obtain::<Arc<dyn AuthService>>().unwrap().clone();
-    let body: RegisterRequest = match req.parse_json().await {
-        Ok(b) => b,
-        Err(_) => {
-            res.status_code(StatusCode::BAD_REQUEST);
-            res.render(Text::Plain("Invalid request body"));
-            return;
-        }
-    };
+    let body: RegisterRequest = req
+        .parse_json()
+        .await
+        .map_err(|_| RegisterError::BadRequest("Invalid request body".into()))?;
 
     let device_hash = device_hash_from_request(req);
     let ip = extract_client_ip(req);
 
-    match auth
+    let auth_response = auth
         .register(
             &body.username,
             &body.email,
@@ -83,87 +225,66 @@ pub async fn register(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             &ip,
         )
         .await
-    {
-        Ok(auth_response) => {
-            let cookie = salvo::http::cookie::Cookie::build((
-                "session_id",
-                auth_response.session_id.clone(),
-            ))
+        .map_err(|err| RegisterError::Conflict(err.to_string()))?;
+
+    let cookie =
+        salvo::http::cookie::Cookie::build(("session_id", auth_response.session_id.clone()))
             .path("/")
             .http_only(true)
             .same_site(salvo::http::cookie::SameSite::Lax)
             .max_age(salvo::http::cookie::time::Duration::days(7))
             .build();
-            res.add_cookie(cookie);
-            res.status_code(StatusCode::OK);
-            res.render(Json(auth_response));
-        }
-        Err(err) => {
-            res.status_code(StatusCode::BAD_REQUEST);
-            res.render(Text::Plain(err.to_string()));
-        }
-    }
+    res.add_cookie(cookie);
+
+    Ok(Json(auth_response))
 }
 
 /// Login with username/email and password
 #[endpoint(
     tags("auth"),
     request_body = LoginRequest,
-    responses(
-        (status_code = 200, body = crate::utils::service::AuthResponse, description = "Login successful"),
-        (status_code = 400, description = "Bad request"),
-        (status_code = 401, description = "Invalid credentials")
-    )
 )]
-pub async fn login(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+pub async fn login(
+    req: &mut Request,
+    depot: &mut Depot,
+    res: &mut Response,
+) -> Result<Json<crate::utils::service::AuthResponse>, LoginError> {
     let auth = depot.obtain::<Arc<dyn AuthService>>().unwrap().clone();
-    let body: LoginRequest = match req.parse_json().await {
-        Ok(b) => b,
-        Err(_) => {
-            res.status_code(StatusCode::BAD_REQUEST);
-            res.render(Text::Plain("Invalid request body"));
-            return;
-        }
-    };
+    let body: LoginRequest = req
+        .parse_json()
+        .await
+        .map_err(|_| LoginError::BadRequest("Invalid request body".into()))?;
 
     let device_hash = device_hash_from_request(req);
     let ip = extract_client_ip(req);
 
-    match auth
+    let auth_response = auth
         .login(&body.username_or_email, &body.password, &device_hash, &ip)
         .await
-    {
-        Ok(auth_response) => {
-            let cookie = salvo::http::cookie::Cookie::build((
-                "session_id",
-                auth_response.session_id.clone(),
-            ))
+        .map_err(|_| LoginError::Unauthorized("Invalid username or password".into()))?;
+
+    let cookie =
+        salvo::http::cookie::Cookie::build(("session_id", auth_response.session_id.clone()))
             .path("/")
             .http_only(true)
             .same_site(salvo::http::cookie::SameSite::Lax)
             .max_age(salvo::http::cookie::time::Duration::days(7))
             .build();
-            res.add_cookie(cookie);
-            res.status_code(StatusCode::OK);
-            res.render(Json(auth_response));
-        }
-        Err(err) => {
-            res.status_code(StatusCode::UNAUTHORIZED);
-            res.render(Text::Plain(err.to_string()));
-        }
-    }
+    res.add_cookie(cookie);
+
+    Ok(Json(auth_response))
 }
 
 /// Refresh an existing session using a session cookie or request body
 #[endpoint(
     tags("auth"),
     request_body(content = RefreshRequest, description = "Session ID (alternative to session cookie)"),
-    responses(
-        (status_code = 200, body = crate::utils::service::AuthResponse, description = "Session refreshed successfully"),
-        (status_code = 401, description = "Invalid or expired session")
-    )
 )]
-pub async fn refresh(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+pub async fn refresh(
+    req: &mut Request,
+    depot: &mut Depot,
+    res: &mut Response,
+) -> Result<Json<crate::utils::service::AuthResponse>, RefreshError> {
     let auth = depot.obtain::<Arc<dyn AuthService>>().unwrap().clone();
 
     let session_id = if let Some(c) = req.cookie("session_id") {
@@ -171,43 +292,35 @@ pub async fn refresh(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     } else if let Ok(body) = req.parse_json::<RefreshRequest>().await {
         body.session_id
     } else {
-        res.status_code(StatusCode::UNAUTHORIZED);
-        res.render(Text::Plain("Missing session cookie or body"));
-        return;
+        return Err(RefreshError::Unauthorized(
+            "Missing session cookie or body".into(),
+        ));
     };
 
-    match auth.refresh(&session_id).await {
-        Ok(auth_response) => {
-            let cookie = salvo::http::cookie::Cookie::build((
-                "session_id",
-                auth_response.session_id.clone(),
-            ))
+    let auth_response = auth
+        .refresh(&session_id)
+        .await
+        .map_err(|_| RefreshError::Unauthorized("Invalid or expired session".into()))?;
+
+    let cookie =
+        salvo::http::cookie::Cookie::build(("session_id", auth_response.session_id.clone()))
             .path("/")
             .http_only(true)
             .same_site(salvo::http::cookie::SameSite::Lax)
             .max_age(salvo::http::cookie::time::Duration::days(7))
             .build();
-            res.add_cookie(cookie);
+    res.add_cookie(cookie);
 
-            res.status_code(StatusCode::OK);
-            res.render(Json(auth_response));
-        }
-        Err(err) => {
-            res.status_code(StatusCode::UNAUTHORIZED);
-            res.render(Text::Plain(err.to_string()));
-        }
-    }
+    Ok(Json(auth_response))
 }
 
 /// Logout and revoke the current session
-#[endpoint(
-    tags("auth"),
-    responses(
-        (status_code = 200, description = "Logged out successfully"),
-        (status_code = 500, description = "Internal server error")
-    )
-)]
-pub async fn logout(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+#[endpoint(tags("auth"))]
+pub async fn logout(
+    req: &mut Request,
+    depot: &mut Depot,
+    res: &mut Response,
+) -> Result<(), LogoutError> {
     let auth = depot.obtain::<Arc<dyn AuthService>>().unwrap().clone();
 
     let session_id = if let Some(c) = req.cookie("session_id") {
@@ -215,24 +328,18 @@ pub async fn logout(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     } else if let Ok(body) = req.parse_json::<RefreshRequest>().await {
         body.session_id
     } else {
-        // Already logged out or no session
-        res.status_code(StatusCode::OK);
-        return;
+        // Already logged out or no session — idempotent 200
+        return Ok(());
     };
 
     // Remove cookie
     res.remove_cookie("session_id");
 
-    match auth.logout(&session_id).await {
-        Ok(_) => {
-            res.status_code(StatusCode::OK);
-        }
-        Err(err) => {
-            // Even if backend fails, we cleared the cookie
-            res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
-            res.render(Text::Plain(err.to_string()));
-        }
-    }
+    auth.logout(&session_id)
+        .await
+        .map_err(|err| LogoutError::InternalError(err.to_string()))?;
+
+    Ok(())
 }
 
 #[derive(Serialize, ToSchema)]
@@ -259,91 +366,62 @@ fn extract_bearer_token(req: &Request) -> Option<String> {
 }
 
 /// Logout all active sessions for the current user
-#[endpoint(
-    tags("auth"),
-    responses(
-        (status_code = 200, body = LogoutAllResponse, description = "All sessions revoked"),
-        (status_code = 401, description = "Invalid or missing JWT")
-    )
-)]
-pub async fn logout_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+#[endpoint(tags("auth"))]
+pub async fn logout_all(
+    req: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<LogoutAllResponse>, LogoutAllError> {
     let auth = depot.obtain::<Arc<dyn AuthService>>().unwrap().clone();
 
-    let token = match extract_bearer_token(req) {
-        Some(t) => t,
-        None => {
-            res.status_code(StatusCode::UNAUTHORIZED);
-            return;
-        }
-    };
+    let token = extract_bearer_token(req)
+        .ok_or_else(|| LogoutAllError::Unauthorized("Missing Authorization header".into()))?;
 
-    let user = match auth.verify_token(&token).await {
-        Ok(u) => u,
-        Err(_) => {
-            res.status_code(StatusCode::UNAUTHORIZED);
-            return;
-        }
-    };
+    let user = auth
+        .verify_token(&token)
+        .await
+        .map_err(|_| LogoutAllError::Unauthorized("Invalid or expired token".into()))?;
 
-    match auth.logout_all(&user.user_id).await {
-        Ok(revoked) => {
-            res.status_code(StatusCode::OK);
-            res.render(Json(LogoutAllResponse { revoked }));
-        }
-        Err(err) => {
-            res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
-            res.render(Text::Plain(err.to_string()));
-        }
-    }
+    let revoked = auth
+        .logout_all(&user.user_id)
+        .await
+        .map_err(|err| LogoutAllError::InternalError(err.to_string()))?;
+
+    Ok(Json(LogoutAllResponse { revoked }))
 }
 
 /// List all active sessions for the current user
-#[endpoint(
-    tags("auth"),
-    responses(
-        (status_code = 200, body = Vec<SessionSummary>, description = "Active sessions"),
-        (status_code = 401, description = "Invalid or missing JWT")
-    )
-)]
-pub async fn list_sessions(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+#[endpoint(tags("auth"))]
+pub async fn list_sessions(
+    req: &mut Request,
+    depot: &mut Depot,
+) -> Result<Json<Vec<SessionSummary>>, ListSessionsError> {
     let auth = depot.obtain::<Arc<dyn AuthService>>().unwrap().clone();
 
-    let token = match extract_bearer_token(req) {
-        Some(t) => t,
-        None => {
-            res.status_code(StatusCode::UNAUTHORIZED);
-            return;
-        }
-    };
+    let token = extract_bearer_token(req)
+        .ok_or_else(|| ListSessionsError::Unauthorized("Missing Authorization header".into()))?;
 
-    let user = match auth.verify_token(&token).await {
-        Ok(u) => u,
-        Err(_) => {
-            res.status_code(StatusCode::UNAUTHORIZED);
-            return;
-        }
-    };
+    let user = auth
+        .verify_token(&token)
+        .await
+        .map_err(|_| ListSessionsError::Unauthorized("Invalid or expired token".into()))?;
 
-    match auth.get_sessions(&user.user_id).await {
-        Ok(sessions) => {
-            let summaries: Vec<SessionSummary> = sessions
-                .into_iter()
-                .map(|(session_id, data)| SessionSummary {
-                    session_id,
-                    device_hash: data.device_hash,
-                    ip: data.ip,
-                    created_at: data.created_at,
-                    last_active: data.last_active,
-                })
-                .collect();
-            res.status_code(StatusCode::OK);
-            res.render(Json(summaries));
-        }
-        Err(err) => {
-            res.status_code(StatusCode::INTERNAL_SERVER_ERROR);
-            res.render(Text::Plain(err.to_string()));
-        }
-    }
+    let sessions = auth
+        .get_sessions(&user.user_id)
+        .await
+        .map_err(|err| ListSessionsError::InternalError(err.to_string()))?;
+
+    let summaries: Vec<SessionSummary> = sessions
+        .into_iter()
+        .map(|(session_id, data)| SessionSummary {
+            session_id,
+            device_hash: data.device_hash,
+            ip: data.ip,
+            created_at: data.created_at,
+            last_active: data.last_active,
+        })
+        .collect();
+
+    Ok(Json(summaries))
 }
 
 pub fn auth_routes() -> Router {

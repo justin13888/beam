@@ -21,6 +21,9 @@ Unit tests must verify essential services end-to-end without spinning up externa
 * **Edge-Case Codification:** Any scenario that would normally require manual verification (e.g., corrupted media streams, missing file paths, database connection drops) MUST be codified as a unit test by configuring the injected traits to return the relevant `Result::Err`.
 * **Test Data Builders:** Implement builder patterns for domain entities in your `#[cfg(test)]` modules to quickly scaffold consistent, valid state across different test suites.
 
+## Rust Styling
+- Prefer more verbose, explicit patterns if it avoids refactoring bugs (e.g., destructure if almost all struct fields are being used.)
+
 ## Workflow Rules
 1. Before modifying database schema, check `beam-migration` and `beam-entity`.
 2. Do not add new external service dependencies to `compose.dependencies.yaml` without explicitly providing an in-memory trait implementation for the test suite first.

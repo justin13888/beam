@@ -8,12 +8,16 @@ publish = false
 [dependencies]
 async-trait = { workspace = true }
 chrono = { workspace = true }
+ffmpeg-next = { workspace = true }
+num = { version = "0.4.3", features = ["serde"] }
 parking_lot = "0.12.5"
 sea-orm = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
 uuid = { workspace = true }
+xxhash-rust = { version = "0.8.15", features = ["xxh3"] }
 
 [dependencies.beam-entity]
 path = "../beam-entity"

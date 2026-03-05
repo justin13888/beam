@@ -1,0 +1,67 @@
+# .bazelrc.user.example — developer-local Bazel overrides template
+#
+# Copy this file to .bazelrc.user and edit for your machine.
+# .bazelrc.user is gitignored and loaded automatically by .bazelrc via
+# `try-import %workspace%/.bazelrc.user`.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# FEDORA DEVELOPER SETUP (Homebrew GCC, libstdc++ symlink, libass from Brew)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Prerequisites:
+#   1. Create libstdc++.so symlink (Fedora lacks libstdc++-devel):
+#        mkdir -p ~/.local/lib
+#        ln -sf /usr/lib64/libstdc++.so.6 ~/.local/lib/libstdc++.so
+#
+#   2. Install Homebrew GCC for C++ frontend (cc1plus):
+#        brew install gcc nasm
+#        ln -sf $(brew --prefix gcc)/bin/gcc-15 ~/.local/bin/gcc
+#        ln -sf $(brew --prefix gcc)/bin/g++-15  ~/.local/bin/g++
+#
+#   3. Install libass via Homebrew (libass-devel not in default Fedora repos):
+#        brew install libass
+#
+# Then create .bazelrc.user with the following content (adjust paths/versions):
+
+# libstdc++ workaround
+build --action_env=LIBRARY_PATH=/home/YOUR_USER/.local/lib
+build --sandbox_add_mount_pair=/home/YOUR_USER/.local/lib
+build --sandbox_add_mount_pair=/home/YOUR_USER/.local/bin
+build --linkopt=-L/home/YOUR_USER/.local/lib
+build --host_linkopt=-L/home/YOUR_USER/.local/lib
+
+# GCC 15 C23 fix (comment out if using GCC < 15)
+build --host_copt=-std=gnu17
+
+# Homebrew GCC with C++ support
+build --repo_env=CC=/home/YOUR_USER/.local/bin/gcc
+build --repo_env=CXX=/home/YOUR_USER/.local/bin/g++
+build --action_env=CC=/home/YOUR_USER/.local/bin/gcc
+build --action_env=CXX=/home/YOUR_USER/.local/bin/g++
+build --action_env=PATH=/home/YOUR_USER/.bun/bin:/home/YOUR_USER/.local/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin
+
+# Homebrew sandbox visibility
+build --sandbox_add_mount_pair=/home/linuxbrew/.linuxbrew
+build --sandbox_add_mount_pair=/home/linuxbrew/.linuxbrew/lib
+
+# pkg-config: Homebrew (libass) + Fedora system
+build --action_env=PKG_CONFIG_PATH=/home/linuxbrew/.linuxbrew/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/share/pkgconfig
+build --host_action_env=PKG_CONFIG_PATH=/home/linuxbrew/.linuxbrew/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/share/pkgconfig
+
+# bindgen: GCC internal headers for #include_next (adjust GCC version/arch)
+build --action_env=BINDGEN_EXTRA_CLANG_ARGS=-I/usr/lib/gcc/x86_64-redhat-linux/15/include
+
+# ─────────────────────────────────────────────────────────────────────────────
+# UBUNTU / DEBIAN DEVELOPER SETUP
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Prerequisites:
+#   sudo apt install build-essential pkg-config clang libclang-dev nasm yasm \
+#     libx264-dev libx265-dev libvpx-dev libopus-dev libass-dev \
+#     libfreetype-dev libfontconfig-dev libfribidi-dev libogg-dev libssl-dev
+#
+# No extra .bazelrc.user entries are needed on Ubuntu — the CI defaults work.
+# Optionally, if pkg-config cannot find libraries, add:
+#
+# build --action_env=PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
+# build --host_action_env=PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig

@@ -1,0 +1,88 @@
+# ── Common flags ──────────────────────────────────────────────────────────────
+
+build --enable_platform_specific_config
+# Enable Bzlmod (required; Bazel 8 default but explicit for clarity).
+common --enable_bzlmod
+
+# ── Rust toolchain ────────────────────────────────────────────────────────────
+
+# Propagate RUST_BACKTRACE so test failures show stack traces.
+test --test_env=RUST_BACKTRACE=1
+
+# ── Clippy ───────────────────────────────────────────────────────────────────
+
+# Enable with `bazel build --config=clippy //...`
+build:clippy --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect
+build:clippy --output_groups=+clippy_checks
+# Treat all Clippy warnings as errors (mirrors `-- -D warnings` in cargo clippy).
+build:clippy --@rules_rust//:clippy_flags=-Dwarnings
+
+# ── Rustfmt ──────────────────────────────────────────────────────────────────
+
+# Enable with `bazel build --config=rustfmt //...`
+build:rustfmt --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect
+build:rustfmt --output_groups=+rustfmt_checks
+
+# ── Test output ───────────────────────────────────────────────────────────────
+
+test --test_output=errors
+
+# ── CI ────────────────────────────────────────────────────────────────────────
+
+# Disk cache to avoid redundant builds across CI steps.
+build:ci --disk_cache=/tmp/bazel-disk-cache
+build:ci --remote_cache_compression=zstd
+test:ci  --disk_cache=/tmp/bazel-disk-cache
+
+# ── C/C++ toolchain — environment variable pass-throughs ─────────────────────
+# These forward host-environment variables into Bazel sandbox actions so that
+# each environment (developer workstation, CI) can supply its own values.
+# See .bazelrc.user.example for developer-local overrides.
+
+# C/C++ compiler selection (rules_foreign_cc configure_make + Rust linking).
+build --repo_env=CC
+build --repo_env=CXX
+build --action_env=CC
+build --action_env=CXX
+
+# Extra linker search directories (e.g. for libstdc++ without -devel package).
+build --action_env=LIBRARY_PATH
+
+# pkg-config search path: FFmpeg codec .pc files.
+build --action_env=PKG_CONFIG_PATH
+build --host_action_env=PKG_CONFIG_PATH
+
+# Extra clang/cc flags passed to bindgen (ffmpeg-sys-next #include_next fix).
+build --action_env=BINDGEN_EXTRA_CLANG_ARGS
+
+# FFmpeg installation prefix (fallback for the ffmpeg-sys-next build script).
+build --action_env=FFMPEG_DIR
+
+# Dynamic-linker search path (needed at runtime for FFmpeg shared libraries).
+build --action_env=LD_LIBRARY_PATH
+
+# ── Sandbox filesystem mounts ─────────────────────────────────────────────────
+# Expose system header and library directories inside the Bazel sandbox.
+# Only include paths that exist on ALL target systems; distro-specific paths
+# go in .bazelrc.user (developer) or the build:ci stanza (Ubuntu CI).
+
+# GCC internal headers — needed by bindgen for #include_next resolution.
+build --sandbox_add_mount_pair=/usr/lib/gcc
+
+# Standard C headers (present on all Linux distributions).
+build --sandbox_add_mount_pair=/usr/include
+
+# ── CI (Ubuntu/Debian) sandbox mounts ─────────────────────────────────────────
+# Apply with --config=ci.  These paths exist on Ubuntu but not on Fedora.
+
+# Multiarch 64-bit libraries: pkg-config .pc files for codec libraries, etc.
+build:ci --sandbox_add_mount_pair=/usr/lib/x86_64-linux-gnu
+
+# ── Linux platform (rules_foreign_cc requires C toolchain resolution) ─────────
+
+build --incompatible_enable_cc_toolchain_resolution
+
+# ── Developer-local overrides ─────────────────────────────────────────────────
+# .bazelrc.user is gitignored.  See .bazelrc.user.example for a Fedora /
+# Homebrew GCC developer setup template.
+try-import %workspace%/.bazelrc.user

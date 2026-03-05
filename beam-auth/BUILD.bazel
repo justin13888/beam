@@ -1,0 +1,125 @@
+"""beam-auth — Authentication service.
+
+Feature variants:
+  beam_auth_utils        — utils feature (service + repository logic, no HTTP framework)
+  beam_auth              — server feature (utils + Salvo routes); used by beam-stream
+  beam_auth_test_utils   — test-utils feature (in-memory impls); testonly
+  beam_auth_test_server  — server + utils + test-utils (for beam-stream integration tests)
+"""
+
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library")
+
+# Dependencies present regardless of feature.
+ALWAYS_DEPS = [
+    "@crates//:color-eyre",
+    "@crates//:confique",
+    "@crates//:dotenvy",
+    "@crates//:eyre",
+    "@crates//:http",
+    "@crates//:tokio",
+    "@crates//:tracing-subscriber",
+]
+
+# Dependencies gated behind the `utils` feature.
+UTILS_DEPS = [
+    "@crates//:argon2",
+    "@crates//:base64",
+    "@crates//:bb8-redis",
+    "//beam-entity:beam_entity",
+    "@crates//:chrono",
+    "@crates//:jsonwebtoken",
+    "@crates//:rand",
+    "@crates//:redis",
+    "@crates//:sea-orm",
+    "@crates//:serde",
+    "@crates//:serde_json",
+    "@crates//:sha2",
+    "@crates//:thiserror",
+    "@crates//:tracing",
+    "@crates//:uuid",
+]
+
+PROC_MACRO_DEPS = [
+    "@crates//:async-trait",
+]
+
+SRCS = glob(
+    ["src/**/*.rs"],
+    exclude = ["src/main.rs"],
+)
+
+# utils feature — service and repository logic only (no Salvo).
+rust_library(
+    name = "beam_auth_utils",
+    srcs = SRCS,
+    crate_features = ["utils"],
+    crate_name = "beam_auth",
+    edition = "2024",
+    proc_macro_deps = PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = ALWAYS_DEPS + UTILS_DEPS,
+)
+
+# server feature — includes utils + Salvo HTTP handlers.
+# server = ["utils", dep:salvo] in Cargo.toml, so we must also list "utils".
+rust_library(
+    name = "beam_auth",
+    srcs = SRCS,
+    crate_features = [
+        "server",
+        "utils",
+    ],
+    crate_name = "beam_auth",
+    edition = "2024",
+    proc_macro_deps = PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = ALWAYS_DEPS + UTILS_DEPS + ["@crates//:salvo"],
+)
+
+# test-utils feature — in-memory implementations of auth traits (testonly).
+# test-utils = ["utils"] in Cargo.toml, so we must also list "utils".
+rust_library(
+    name = "beam_auth_test_utils",
+    testonly = True,
+    srcs = SRCS,
+    crate_features = [
+        "test-utils",
+        "utils",
+    ],
+    crate_name = "beam_auth",
+    edition = "2024",
+    proc_macro_deps = PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = ALWAYS_DEPS + UTILS_DEPS,
+)
+
+# server + test-utils — used by beam-stream integration tests which need both
+# the Salvo routes (server) and the in-memory fakes (test-utils).
+rust_library(
+    name = "beam_auth_test_server",
+    testonly = True,
+    srcs = SRCS,
+    crate_features = [
+        "server",
+        "test-utils",
+        "utils",
+    ],
+    crate_name = "beam_auth",
+    edition = "2024",
+    proc_macro_deps = PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = ALWAYS_DEPS + UTILS_DEPS + ["@crates//:salvo"],
+)
+
+# ── Binary ────────────────────────────────────────────────────────────────────
+
+rust_binary(
+    name = "beam-auth",
+    srcs = ["src/main.rs"],
+    edition = "2024",
+    proc_macro_deps = PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = [":beam_auth"] + ALWAYS_DEPS + UTILS_DEPS + ["@crates//:salvo"],
+)
+
+exports_files(["Cargo.toml"])

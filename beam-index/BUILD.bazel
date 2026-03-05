@@ -1,0 +1,205 @@
+"""beam-index — Media indexing service with FFmpeg + gRPC.
+
+The build.rs invokes tonic_build to generate Rust stubs from
+proto/beam_index.proto. The cargo_build_script target reproduces
+this step hermetically inside Bazel, with protoc supplied via the
+@toolchains_protoc_hub toolchain.
+"""
+
+load("@rules_rust//cargo:defs.bzl", "cargo_build_script")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+
+# ── Platform config_settings for protoc binary selection ─────────────────────
+# The toolchains_protoc_hub platform repos each expose bin/protoc.
+# cargo_build_script needs a concrete label, so we use config_setting + alias.
+
+config_setting(
+    name = "_linux_x86_64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+config_setting(
+    name = "_linux_aarch64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+config_setting(
+    name = "_linux_ppc64le",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:ppc64le",
+    ],
+)
+
+config_setting(
+    name = "_linux_s390x",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:s390x",
+    ],
+)
+
+config_setting(
+    name = "_osx_aarch64",
+    constraint_values = [
+        "@platforms//os:macos",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+config_setting(
+    name = "_osx_x86_64",
+    constraint_values = [
+        "@platforms//os:macos",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+config_setting(
+    name = "_win_x86_64",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+alias(
+    name = "protoc",
+    actual = select({
+        ":_linux_x86_64": "@toolchains_protoc_hub.linux_x86_64//:bin/protoc",
+        ":_linux_aarch64": "@toolchains_protoc_hub.linux_aarch_64//:bin/protoc",
+        ":_linux_ppc64le": "@toolchains_protoc_hub.linux_ppcle_64//:bin/protoc",
+        ":_linux_s390x": "@toolchains_protoc_hub.linux_s390_64//:bin/protoc",
+        ":_osx_aarch64": "@toolchains_protoc_hub.osx_aarch_64//:bin/protoc",
+        ":_osx_x86_64": "@toolchains_protoc_hub.osx_x86_64//:bin/protoc",
+        ":_win_x86_64": "@toolchains_protoc_hub.win64//:bin/protoc.exe",
+    }),
+)
+
+# ── Build script (tonic protobuf codegen) ─────────────────────────────────────
+
+cargo_build_script(
+    name = "beam_index_bs",
+    srcs = ["build.rs"],
+    # Pass protoc binary location via environment variable.
+    # tonic_build respects the PROTOC env var.
+    build_script_env = {
+        "PROTOC": "$(execpath :protoc)",
+    },
+    # Expose the proto file as data so the build script can read it.
+    # Note: beam-index/proto has its own BUILD.bazel so it's a subpackage.
+    data = ["//beam-index/proto:beam_index.proto"],
+    edition = "2024",
+    tools = [":protoc"],
+    deps = ["@crates//:tonic-build"],
+)
+
+# ── Library ───────────────────────────────────────────────────────────────────
+
+COMMON_DEPS = [
+    ":beam_index_bs",
+    "//beam-domain:beam_domain_entity",
+    "//beam-entity:beam_entity",
+    "@crates//:async-graphql",
+    "@crates//:chrono",
+    "@crates//:color-eyre",
+    "@crates//:confique",
+    "@crates//:dotenvy",
+    "@crates//:eyre",
+    "@crates//:ffmpeg-next",
+    "@crates//:num",
+    "@crates//:num_cpus",
+    "@crates//:parking_lot",
+    "@crates//:prost",
+    "@crates//:rayon",
+    "@crates//:regex",
+    "@crates//:sea-orm",
+    "@crates//:serde",
+    "@crates//:serde_json",
+    "@crates//:thiserror",
+    "@crates//:tokio",
+    "@crates//:tonic",
+    "@crates//:tracing",
+    "@crates//:tracing-subscriber",
+    "@crates//:uuid",
+    "@crates//:walkdir",
+    "@crates//:xxhash-rust",
+    # FFmpeg shared libraries (built hermetically by Bazel).
+    "//third_party/ffmpeg:ffmpeg",
+]
+
+COMMON_PROC_MACRO_DEPS = [
+    "@crates//:async-trait",
+]
+
+rust_library(
+    name = "beam_index",
+    srcs = glob(
+        ["src/**/*.rs"],
+        exclude = ["src/main.rs"],
+    ),
+    edition = "2024",
+    proc_macro_deps = COMMON_PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = COMMON_DEPS,
+)
+
+# With test-utils feature — exposes in-memory fakes + mockall mocks.
+# beam_domain_test_utils already carries the `entity` feature, so it
+# supersedes beam_domain_entity from COMMON_DEPS.  We filter that out to
+# avoid duplicate-rlib conflicts (same crate_name, different hashes).
+TEST_UTILS_DEPS = [
+    dep
+    for dep in COMMON_DEPS
+    if dep != "//beam-domain:beam_domain_entity"
+] + [
+    "//beam-domain:beam_domain_test_utils",
+    "@crates//:mockall",
+]
+
+rust_library(
+    name = "beam_index_test_utils",
+    testonly = True,
+    srcs = glob(
+        ["src/**/*.rs"],
+        exclude = ["src/main.rs"],
+    ),
+    crate_features = ["test-utils"],
+    crate_name = "beam_index",
+    edition = "2024",
+    proc_macro_deps = COMMON_PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = TEST_UTILS_DEPS,
+)
+
+# ── Binary ────────────────────────────────────────────────────────────────────
+
+rust_binary(
+    name = "beam-index",
+    srcs = ["src/main.rs"],
+    edition = "2024",
+    proc_macro_deps = COMMON_PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = [":beam_index"] + COMMON_DEPS,
+)
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+
+rust_test(
+    name = "beam_index_test",
+    crate = ":beam_index_test_utils",
+    edition = "2024",
+    deps = [
+        "@crates//:futures",
+        "@crates//:mockall",
+        "@crates//:tempfile",
+    ],
+)
+
+exports_files(["Cargo.toml"])

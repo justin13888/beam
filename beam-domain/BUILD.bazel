@@ -1,0 +1,69 @@
+"""beam-domain — Core domain types and traits.
+
+Feature variants:
+  beam_domain            — base (no optional features)
+  beam_domain_entity     — + entity feature (requires beam-entity)
+  beam_domain_test_utils — + entity + test-utils features (testonly)
+"""
+
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+SRCS = glob(["src/**/*.rs"])
+
+BASE_DEPS = [
+    "@crates//:chrono",
+    "@crates//:parking_lot",
+    "@crates//:sea-orm",
+    "@crates//:serde",
+    "@crates//:serde_json",
+    "@crates//:thiserror",
+    "@crates//:uuid",
+]
+
+BASE_PROC_MACRO_DEPS = [
+    "@crates//:async-trait",
+]
+
+# Base target — no optional features.
+rust_library(
+    name = "beam_domain",
+    srcs = SRCS,
+    crate_name = "beam_domain",
+    edition = "2024",
+    proc_macro_deps = BASE_PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = BASE_DEPS,
+)
+
+# With the `entity` feature — adds beam-entity as a dependency.
+rust_library(
+    name = "beam_domain_entity",
+    srcs = SRCS,
+    crate_features = ["entity"],
+    crate_name = "beam_domain",
+    edition = "2024",
+    proc_macro_deps = BASE_PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = BASE_DEPS + ["//beam-entity:beam_entity"],
+)
+
+# With `entity` + `test-utils` — exposes in-memory / mockall implementations.
+rust_library(
+    name = "beam_domain_test_utils",
+    testonly = True,
+    srcs = SRCS,
+    crate_features = [
+        "entity",
+        "test-utils",
+    ],
+    crate_name = "beam_domain",
+    edition = "2024",
+    proc_macro_deps = BASE_PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = BASE_DEPS + [
+        "//beam-entity:beam_entity",
+        "@crates//:mockall",
+    ],
+)
+
+exports_files(["Cargo.toml"])

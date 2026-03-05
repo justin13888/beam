@@ -1,0 +1,65 @@
+"""FFmpeg 8.0 — built from source via rules_foreign_cc configure_make.
+
+This target provides the shared libraries and headers consumed by the
+ffmpeg-next Rust crate (and its sys crate ffmpeg-sys-next).
+
+System codec libraries (libx264, libx265, libvpx, libopus, libass,
+libfreetype, libfontconfig, libfribidi, libogg, openssl) must be
+installed on the build host. In CI these are provided via the
+.github/actions/install-rust-build-deps action.
+
+The configure_make output directory is used as FFMPEG_DIR by the
+ffmpeg-sys-next build script (set via crate.annotation in MODULE.bazel).
+"""
+
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+# All FFmpeg source files from the http_archive defined in MODULE.bazel.
+filegroup(
+    name = "all_srcs",
+    srcs = ["@ffmpeg_8_0_src//:all"],
+)
+
+configure_make(
+    name = "ffmpeg",
+    # Passed directly to ./configure
+    configure_options = [
+        "--disable-debug",
+        "--disable-doc",
+        # Disable all CLI programs — we only need the shared libraries.
+        # Also avoids a naming conflict: the configure_make target is named
+        # "ffmpeg", so the install prefix becomes ".../ffmpeg/", which conflicts
+        # with the ffmpeg executable written by "strip ffmpeg_g -o ffmpeg".
+        "--disable-programs",
+        "--disable-static",
+        "--enable-shared",
+        "--enable-gpl",
+        "--enable-version3",
+        # Codec / format flags (matching CI setup-ffmpeg action)
+        "--enable-fontconfig",
+        "--enable-libass",
+        "--enable-libfontconfig",
+        "--enable-libfreetype",
+        "--enable-libfribidi",
+        "--enable-libopus",
+        "--enable-libvpx",
+        "--enable-libx264",
+        "--enable-libx265",
+        "--enable-openssl",
+        "--enable-small",
+        "--extra-libs=-lpthread",
+        "--extra-libs=-lm",
+    ],
+    lib_source = ":all_srcs",
+    # Shared libraries produced by the build.
+    out_shared_libs = [
+        "libavcodec.so",
+        "libavdevice.so",
+        "libavfilter.so",
+        "libavformat.so",
+        "libavutil.so",
+        "libswresample.so",
+        "libswscale.so",
+    ],
+    visibility = ["//visibility:public"],
+)

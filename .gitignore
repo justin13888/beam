@@ -21,6 +21,11 @@ target
 .env
 .todos/
 
+# Bazel
+bazel-*
+.bazel/
+.bazelrc.user
+
 # Sidecar worktree state files
 .sidecar/
 .sidecar-agent

@@ -1,0 +1,63 @@
+"""Root BUILD file — workspace-level lint and formatting targets."""
+
+load("@buildifier_prebuilt//:rules.bzl", "buildifier", "buildifier_test")
+
+# ── Buildifier (BUILD file formatter / linter) ────────────────────────────────
+
+buildifier(
+    name = "buildifier",
+    exclude_patterns = [
+        "./.git/*",
+        "./node_modules/*",
+        "./target/*",
+    ],
+    lint_mode = "fix",
+    mode = "fix",
+)
+
+buildifier_test(
+    name = "buildifier_check",
+    exclude_patterns = [
+        "./.git/*",
+        "./node_modules/*",
+        "./target/*",
+    ],
+    lint_mode = "warn",
+    mode = "diff",
+    no_sandbox = True,
+    workspace = "//:WORKSPACE.bazel",
+)
+
+# ── Biome (TypeScript / JS lint + format) ─────────────────────────────────────
+# Delegates to `bun run check` which invokes biome.
+# Requires `bun` in PATH and `bun install` to have been run.
+
+genrule(
+    name = "biome_check",
+    srcs = [
+        "biome.json",
+        "package.json",
+        "bun.lock",
+        "//beam-web:ts_sources",
+        "//beam-docs:ts_sources",
+    ],
+    outs = ["biome_check.stamp"],
+    cmd = """
+        ROOT=$$(pwd)
+        cd $$(dirname $$(realpath $(location biome.json)))
+        bun run check 2>&1
+        touch $$ROOT/$@
+    """,
+    local = True,
+    tags = ["no-sandbox"],
+)
+
+# Expose Cargo.lock and root Cargo.toml for crates_repository.
+exports_files([
+    "biome.json",
+    "bun.lock",
+    "Cargo.lock",
+    "Cargo.toml",
+    "package.json",
+    "WORKSPACE.bazel",
+])

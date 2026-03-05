@@ -1,0 +1,3 @@
+# This repository uses Bzlmod (MODULE.bazel) as its dependency management system.
+# This file is intentionally minimal — it exists so that tools such as buildifier
+# that look for a WORKSPACE file can locate the repository root.

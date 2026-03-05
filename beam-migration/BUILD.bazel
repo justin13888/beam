@@ -1,0 +1,37 @@
+"""beam-migration — SeaORM migration library and runner binary."""
+
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library")
+
+COMMON_DEPS = [
+    "@crates//:argon2",
+    "@crates//:sea-orm-migration",
+    "@crates//:tokio",
+]
+
+COMMON_PROC_MACRO_DEPS = [
+    "@crates//:async-trait",
+]
+
+rust_library(
+    name = "beam_migration",
+    srcs = glob(
+        ["src/**/*.rs"],
+        exclude = ["src/main.rs"],
+    ),
+    crate_name = "beam_migration",
+    edition = "2024",
+    proc_macro_deps = COMMON_PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = COMMON_DEPS,
+)
+
+rust_binary(
+    name = "beam-migration",
+    srcs = ["src/main.rs"],
+    edition = "2024",
+    proc_macro_deps = COMMON_PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = [":beam_migration"] + COMMON_DEPS,
+)
+
+exports_files(["Cargo.toml"])

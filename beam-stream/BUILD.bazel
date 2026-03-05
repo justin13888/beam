@@ -1,0 +1,222 @@
+"""beam-stream — Media streaming server (Salvo + async-graphql + FFmpeg).
+
+Targets:
+  beam_stream         — library crate
+  beam-stream         — main server binary
+  export_schema       — bin/export_schema.rs → writes schema.graphql to stdout
+  export_openapi      — examples/export_openapi.rs → writes openapi.json to stdout
+  metadata_extractor  — examples/metadata_extractor.rs
+  gen_hls             — examples/gen_hls.rs
+  gen_mp4             — examples/gen_mp4.rs
+
+Cross-language codegen:
+  schema_graphql      — genrule: runs export_schema → schema.graphql
+  openapi_json        — genrule: runs export_openapi → beam-web/openapi.json
+"""
+
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+
+COMMON_DEPS = [
+    # beam-stream uses beam_auth::server::auth_routes() → needs the server feature.
+    "//beam-auth:beam_auth",
+    "//beam-domain:beam_domain_entity",
+    "//beam-entity:beam_entity",
+    "//beam-index:beam_index",
+    "@crates//:async-graphql",
+    "@crates//:async-stream",
+    "@crates//:bytes",
+    "@crates//:chrono",
+    "@crates//:color-eyre",
+    "@crates//:confique",
+    "@crates//:dotenvy",
+    "@crates//:eyre",
+    "@crates//:ffmpeg-next",
+    "@crates//:fs2",
+    "@crates//:futures-util",
+    "@crates//:hex",
+    "@crates//:http",
+    "@crates//:m3u8-rs",
+    "@crates//:num",
+    "@crates//:num_cpus",
+    "@crates//:parking_lot",
+    "@crates//:prost",
+    "@crates//:rand",
+    "@crates//:rayon",
+    "@crates//:regex",
+    "@crates//:rust_decimal",
+    "@crates//:salvo",
+    "@crates//:sea-orm",
+    "@crates//:serde",
+    "@crates//:serde_json",
+    "@crates//:tempfile",
+    "@crates//:thiserror",
+    "@crates//:tokio",
+    "@crates//:tonic",
+    "@crates//:tracing",
+    "@crates//:tracing-subscriber",
+    "@crates//:uuid",
+    "@crates//:walkdir",
+    "@crates//:xxhash-rust",
+    # FFmpeg shared libraries (built hermetically by Bazel).
+    "//third_party/ffmpeg:ffmpeg",
+]
+
+COMMON_PROC_MACRO_DEPS = [
+    "@crates//:async-trait",
+]
+
+# ── Library ───────────────────────────────────────────────────────────────────
+
+rust_library(
+    name = "beam_stream",
+    srcs = glob(
+        ["src/**/*.rs"],
+        # Exclude binary entry-points; they're defined as separate rust_binary targets.
+        exclude = [
+            "src/main.rs",
+            "src/bin/**/*.rs",
+        ],
+    ),
+    edition = "2024",
+    proc_macro_deps = COMMON_PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = COMMON_DEPS,
+)
+
+# ── Main server binary ────────────────────────────────────────────────────────
+
+rust_binary(
+    name = "beam-stream",
+    srcs = ["src/main.rs"],
+    edition = "2024",
+    proc_macro_deps = COMMON_PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = [":beam_stream"] + COMMON_DEPS,
+)
+
+# ── Utility binaries ──────────────────────────────────────────────────────────
+
+rust_binary(
+    name = "export_schema",
+    srcs = ["src/bin/export_schema.rs"],
+    edition = "2024",
+    proc_macro_deps = COMMON_PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = [":beam_stream"] + COMMON_DEPS,
+)
+
+# ── Example binaries ──────────────────────────────────────────────────────────
+
+rust_binary(
+    name = "export_openapi",
+    srcs = ["examples/export_openapi.rs"],
+    edition = "2024",
+    proc_macro_deps = COMMON_PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = [":beam_stream"] + COMMON_DEPS,
+)
+
+rust_binary(
+    name = "metadata_extractor",
+    srcs = ["examples/metadata_extractor.rs"],
+    edition = "2024",
+    proc_macro_deps = COMMON_PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = [":beam_stream"] + COMMON_DEPS,
+)
+
+rust_binary(
+    name = "gen_hls",
+    srcs = ["examples/gen_hls.rs"],
+    edition = "2024",
+    proc_macro_deps = COMMON_PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = [":beam_stream"] + COMMON_DEPS,
+)
+
+rust_binary(
+    name = "gen_mp4",
+    srcs = ["examples/gen_mp4.rs"],
+    edition = "2024",
+    proc_macro_deps = COMMON_PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = [":beam_stream"] + COMMON_DEPS,
+)
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+# beam-stream tests need in-memory fakes from beam-auth (test-utils+server),
+# beam-domain (entity+test-utils), and beam-index (test-utils).  Using the
+# `crate = ":beam_stream"` approach would pull in the production deps and then
+# ADD the test-utils variants, giving Rustc two rlibs for the same crate_name.
+#
+# Instead we compile the entire beam_stream source set with `test-utils`
+# feature and substitute the production deps with their test-utils counterparts.
+
+TEST_STREAM_DEPS = [
+    dep
+    for dep in COMMON_DEPS
+    if dep not in [
+        "//beam-auth:beam_auth",
+        "//beam-domain:beam_domain_entity",
+        "//beam-index:beam_index",
+    ]
+] + [
+    "//beam-auth:beam_auth_test_server",
+    "//beam-domain:beam_domain_test_utils",
+    "//beam-index:beam_index_test_utils",
+    "//beam-migration:beam_migration",
+]
+
+rust_library(
+    name = "beam_stream_test_utils",
+    testonly = True,
+    srcs = glob(
+        ["src/**/*.rs"],
+        exclude = [
+            "src/main.rs",
+            "src/bin/**/*.rs",
+        ],
+    ),
+    crate_features = ["test-utils"],
+    crate_name = "beam_stream",
+    edition = "2024",
+    proc_macro_deps = COMMON_PROC_MACRO_DEPS,
+    visibility = ["//visibility:public"],
+    deps = TEST_STREAM_DEPS,
+)
+
+rust_test(
+    name = "beam_stream_test",
+    crate = ":beam_stream_test_utils",
+    edition = "2024",
+    deps = [
+        "@crates//:futures",
+        "@crates//:mockall",
+    ],
+)
+
+# ── Cross-language codegen genrules ───────────────────────────────────────────
+
+# Run export_schema → produce beam-stream/schema.graphql
+genrule(
+    name = "schema_graphql",
+    srcs = [],
+    outs = ["schema.graphql"],
+    cmd = "$(execpath :export_schema) > $@",
+    executable = False,
+    tools = [":export_schema"],
+    visibility = ["//visibility:public"],
+)
+
+# Run export_openapi → produce beam-web/openapi.json
+genrule(
+    name = "openapi_json",
+    srcs = [],
+    outs = ["openapi.json"],
+    cmd = "$(execpath :export_openapi) > $@",
+    executable = False,
+    tools = [":export_openapi"],
+    visibility = ["//visibility:public"],
+)
+
+exports_files(["Cargo.toml"])

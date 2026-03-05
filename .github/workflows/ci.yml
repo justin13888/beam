@@ -1,0 +1,171 @@
+name: CI
+
+# Single unified workflow — Bazel is the build system for the entire monorepo.
+# All Rust, TypeScript, protobuf, and cross-language codegen targets are
+# reachable via `bazel build //...` / `bazel test //...`.  Bazel's action
+# cache (disk-cache below) makes re-runs on cache hits cheap, so we do not
+# filter by file path; any commit that reaches master must pass every check.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUST_BACKTRACE: 1
+  # Bazel uses this to locate the Bazelisk-downloaded Bazel binary.
+  USE_BAZEL_VERSION: ""  # read from .bazelversion automatically
+  # pkg-config search path for Ubuntu (Debian multiarch layout).
+  # Passed into Bazel sandbox actions via --action_env=PKG_CONFIG_PATH in .bazelrc.
+  PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
+
+# ── Re-usable setup steps (expressed as job-level defaults) ───────────────────
+# Each job installs system build deps and Bun so that every Bazel target in
+# `//...` is buildable, including:
+#   • FFmpeg configure_make (needs codec system libs via install-rust-build-deps)
+#   • beam-web / beam-docs genrule targets (need bun in PATH)
+
+jobs:
+  # ── Format checks ────────────────────────────────────────────────────────────
+  # Covers:
+  #   • Rust — rustfmt (via rules_rust rustfmt aspect)
+  #   • TypeScript/JS/Astro — biome (via bun run check)
+  #   • BUILD files — buildifier (via bazel run //:buildifier_check)
+  format:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bazelisk
+        uses: bazel-contrib/setup-bazel@0.9.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-fmt
+          repository-cache: true
+
+      - uses: ./.github/actions/install-rust-build-deps
+      - uses: ./.github/actions/setup-bun
+
+      - name: Rust — rustfmt check
+        run: bazel build --config=ci --config=rustfmt //...
+
+      - name: TypeScript / JS / Astro — biome check
+        run: bun run check
+
+      - name: BUILD files — buildifier check
+        run: bazel run --config=ci //:buildifier_check
+
+  # ── Clippy ───────────────────────────────────────────────────────────────────
+  # Runs `cargo clippy` via the rules_rust clippy aspect across all workspace
+  # crates with `-D warnings`.
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bazelisk
+        uses: bazel-contrib/setup-bazel@0.9.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-clippy
+          repository-cache: true
+
+      - uses: ./.github/actions/install-rust-build-deps
+
+      - name: Clippy — all targets (-D warnings)
+        run: bazel build --config=ci --config=clippy //...
+
+  # ── Full build ────────────────────────────────────────────────────────────────
+  # Builds every target in the monorepo, including the cross-language codegen
+  # pipeline (export_openapi → api.gen.ts, export_schema → gql.ts) and both
+  # TypeScript packages (beam-web, beam-docs).
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bazelisk
+        uses: bazel-contrib/setup-bazel@0.9.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-build
+          repository-cache: true
+
+      - uses: ./.github/actions/install-rust-build-deps
+      - uses: ./.github/actions/setup-bun
+
+      - name: Build — entire monorepo
+        run: bazel build --config=ci //...
+
+  # ── Tests ─────────────────────────────────────────────────────────────────────
+  # Runs all Rust and TypeScript tests.
+  # Rust unit tests are zero-infrastructure (no Postgres / Docker required).
+  # TypeScript tests run via the beam-web:test genrule (vitest).
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bazelisk
+        uses: bazel-contrib/setup-bazel@0.9.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-test
+          repository-cache: true
+
+      - uses: ./.github/actions/install-rust-build-deps
+      - uses: ./.github/actions/setup-bun
+
+      - name: Test — all targets
+        run: bazel test --config=ci //...
+
+  # ── Coverage ──────────────────────────────────────────────────────────────────
+  # Generates a combined LCOV report for Rust and uploads it as an artifact.
+  # Runs only after tests pass to avoid spending time on coverage for a broken
+  # build; Bazel's disk cache means test binaries are already compiled.
+  #
+  # TODO: Enforce 80% threshold once coverage reaches that level:
+  #   bazel coverage --config=ci //... --test_env=COVERAGE_THRESHOLD=80
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bazelisk
+        uses: bazel-contrib/setup-bazel@0.9.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-coverage
+          repository-cache: true
+
+      - uses: ./.github/actions/install-rust-build-deps
+      - uses: ./.github/actions/setup-bun
+
+      - name: Generate combined LCOV coverage report
+        run: bazel coverage --config=ci --combined_report=lcov //...
+
+      - name: Upload Rust coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: bazel-out/_coverage/_coverage_report.dat
+          retention-days: 7
+
+      - name: Upload TypeScript coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: ts-coverage-report
+          path: "bazel-bin/beam-web/coverage/lcov.info"
+          if-no-files-found: ignore
+          retention-days: 7

@@ -1,0 +1,99 @@
+"""beam-docs — Astro / Cloudflare Pages documentation site.
+
+All targets delegate to `bun` commands. Bun must be in PATH.
+
+Note on hermeticity: see beam-web/BUILD.bazel for the same caveat
+about bun.lock and the genrule approach.
+"""
+
+# ── Source file groups ────────────────────────────────────────────────────────
+
+filegroup(
+    name = "ts_sources",
+    srcs = glob(
+        [
+            "src/**/*.ts",
+            "src/**/*.tsx",
+            "src/**/*.astro",
+            "src/**/*.md",
+            "src/**/*.mdx",
+        ],
+        allow_empty = True,
+    ) + [
+        "astro.config.mjs",
+        "tsconfig.json",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "package_files",
+    srcs = [
+        "package.json",
+        "//:bun.lock",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# ── Build ─────────────────────────────────────────────────────────────────────
+
+genrule(
+    name = "build",
+    srcs = [
+        ":ts_sources",
+        ":package_files",
+    ],
+    outs = ["dist.stamp"],
+    cmd = """
+        ROOT=$$(pwd)
+        cd $$(dirname $$(realpath beam-docs/package.json))
+        bun run build 2>&1
+        touch $$ROOT/$@
+    """,
+    local = True,
+    tags = ["no-sandbox"],
+    visibility = ["//visibility:public"],
+)
+
+# ── Type check ────────────────────────────────────────────────────────────────
+
+genrule(
+    name = "typecheck",
+    srcs = [
+        ":ts_sources",
+        ":package_files",
+        "tsconfig.json",
+    ],
+    outs = ["typecheck.stamp"],
+    cmd = """
+        ROOT=$$(pwd)
+        cd $$(dirname $$(realpath beam-docs/package.json))
+        bun run typecheck 2>&1
+        touch $$ROOT/$@
+    """,
+    local = True,
+    tags = ["no-sandbox"],
+    visibility = ["//visibility:public"],
+)
+
+# ── Biome lint + format check ─────────────────────────────────────────────────
+
+genrule(
+    name = "biome_check",
+    srcs = [
+        ":ts_sources",
+        "//:biome.json",
+    ],
+    outs = ["biome_check.stamp"],
+    cmd = """
+        ROOT=$$(pwd)
+        cd $$(dirname $$(realpath $(location //:biome.json)))
+        bun run check 2>&1
+        touch $$ROOT/$@
+    """,
+    local = True,
+    tags = ["no-sandbox"],
+    visibility = ["//visibility:public"],
+)
+
+exports_files(["package.json"])

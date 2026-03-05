@@ -1,0 +1,16 @@
+"""beam-entity — SeaORM entity definitions (pure library, no build.rs)."""
+
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+rust_library(
+    name = "beam_entity",
+    srcs = glob(["src/**/*.rs"]),
+    edition = "2024",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@crates//:sea-orm",
+        "@crates//:serde",
+    ],
+)
+
+exports_files(["Cargo.toml"])

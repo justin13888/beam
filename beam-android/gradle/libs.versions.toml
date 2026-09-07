@@ -1,9 +1,19 @@
 [versions]
 # Toolchain. Kotlin, KSP and Hilt are verified together by the Android CI jobs:
-# lint, unit tests and screenshots on debug, plus `android:minify`, which runs
-# R8 in full mode over the release classes so a bump that only the shrunk build
-# rejects fails before the tag rather than after it. So move Kotlin freely and
-# take KSP or Hilt along only when one of them objects at build time.
+# lint, unit tests and screenshots on debug; `android-build`, whose
+# `assembleDebug` is the only gate that dexes and packages an APK and so the
+# only one that packages the cross-compiled core (`:core:ffi:cargoNdkDebug`);
+# and `android:minify`, which runs R8 in full mode over the release classes so
+# a bump that only the shrunk build rejects fails before the tag rather than
+# after it. So move Kotlin freely and take KSP or Hilt along only when one of
+# them objects at build time.
+#
+# That licence stops where the build does. R8 stripping something new is not a
+# build failure: as app/proguard-rules.pro says of the reflective UniFFI and
+# JNA entry points its rules keep, the app then fails "in release only, and not
+# until the code path runs". Nothing here runs the app -- there is no
+# instrumented or device tier -- so a bump that changes what R8 can see wants
+# those keep rules read again by hand, not just a green gate.
 #
 # `ksp` is a bare version, not the `<kotlin>-<ksp>` form: KSP 2 has its own
 # version line and does not track Kotlin's, so this pin need not trail `kotlin`.

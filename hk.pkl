@@ -178,8 +178,9 @@ hooks {
             }
             // `android:minify` is deliberately absent, for the same reason
             // `android:build` is: a full release compile plus an R8 pass over
-            // the whole app is minutes, and CI's android-minify job blocks the
-            // merge, so nothing reaches master unshrunk either way.
+            // the whole app is minutes on every push, which is more than a
+            // hook should spend on a path no Kotlin edit usually touches.
+            // CI's android-minify job runs it instead.
 
             // The Apple steps watch beam-client-core for the same reason the
             // Android ones do: the Swift bindings and the XCFramework are

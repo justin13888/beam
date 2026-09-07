@@ -998,9 +998,10 @@ description = "Rewrite the Kotlin sources to satisfy ktlint"
 run = "ktlint --format --relative 'beam-android/**/*.kt' '!beam-android/**/build/**'"
 
 # The chained Gradle tasks -- lint, test, screenshot, minify -- are ordered
-# against each other for the same reason the pre-push hook chains them: they
-# drive ./gradlew against one project, which serialises on its own lock anyway,
-# so running them at once only contends.
+# against each other because they all drive ./gradlew against one project,
+# which serialises on its own lock anyway, so running them at once only
+# contends. The pre-push hook chains its Android steps for that same reason,
+# but it carries three of these four: see hk.pkl for why minify stays out.
 [tasks."android:test"]
 description = "Run the Android unit tests (JVM and Robolectric)"
 wait_for = ["android:lint"]
@@ -1031,9 +1032,14 @@ wait_for = ["android:lint", "android:test", "android:screenshot"]
 # Android gates -- the Kotlin bindings are generated, not checked in.
 #
 # What it therefore does NOT cover: resource shrinking (`shrinkReleaseRes`),
-# dexing, packaging and signing, and the release-profile Rust cross-compile.
-# Those stay with `android:release`. What is left uncovered is packaging, not
-# the compiler-and-annotation-processor contract this gate exists to hold.
+# core-library desugaring and the dex merge that folds its backport in
+# (`l8DexDesugarLibRelease` -- desugaring is on for every module, see
+# `isCoreLibraryDesugaringEnabled` in KotlinAndroid.kt), packaging and signing,
+# and the release-profile Rust cross-compile. Those stay with
+# `android:release`. Plain dexing is not on that list: with `isMinifyEnabled`
+# the release variant has no separate dex step, because R8 emits the dex for
+# the classes it shrinks. What is left uncovered is packaging, not the
+# compiler-and-annotation-processor contract this gate exists to hold.
 run = "cd beam-android && ./gradlew :app:minifyReleaseWithR8"
 
 [tasks."android:screenshot:record"]
@@ -1462,6 +1468,12 @@ depends = [
     "android:lint",
     "android:test",
     "android:screenshot",
+    # `android:minify` is in this list and `android:build` is not. Minify is
+    # the only gate anywhere that runs R8, so leaving it to CI alone would
+    # mean `mise run ci` cannot see the one failure it exists to catch.
+    # `android:build` adds debug dexing and packaging on top of compilation
+    # the three gates above already do, and CI's android-build job runs it,
+    # so the minutes it would cost here buy the least.
     "android:minify",
     # No-ops on a non-Darwin host, so `mise run ci` stays runnable on Linux
     # while a Mac runs the same set CI enforces. See the apple:* tasks above.

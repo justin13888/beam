@@ -882,8 +882,8 @@ description = "Build the ffmpeg-builder stage of beam-server/Containerfile (need
 # coverage and image builds", and it must stay runnable with no container
 # runtime (NFR-201) -- the same reason dev:verify-oidc sits outside it. It is
 # equally deliberately outside the hk.pkl pre-push hook: this compiles FFmpeg,
-# and no push should pay for that. ci.yml's ffmpeg-build job runs it under the
-# same path filter that routes beam-server/Containerfile.
+# and no push should pay for that. ci.yml's ffmpeg-build job runs it on changes
+# to beam-server/Containerfile alone -- the only file the stage reads.
 #
 # docker first, podman second -- the reverse of scripts/compose.sh, and for a
 # reason. This gate exists to prove release.yml's `docker buildx build`
@@ -894,8 +894,9 @@ description = "Build the ffmpeg-builder stage of beam-server/Containerfile (need
 # BEAM_CONTAINER_CACHE_DIR turns on buildx's local layer cache. It is a bare
 # directory rather than the flags themselves so that the whole command stays
 # here and the workflow only decides where GitHub stores it; unset (the local
-# default) means no cache flags at all, since `type=local` needs a real builder
-# driver to export to. It is docker-only -- see the warning below.
+# default) means no cache flags at all. Whether a requested cache can actually
+# be honoured is a property of the resolved engine's build driver, not of the
+# name it was invoked under -- see the probe below.
 run = '''
 set -eu
 
@@ -916,17 +917,48 @@ fi
 set -- buildx build --target ffmpeg-builder --file beam-server/Containerfile
 
 if [ -n "${BEAM_CONTAINER_CACHE_DIR:-}" ]; then
-    if [ "$engine" = "docker" ]; then
+    # Ask the resolved engine what its build driver is rather than comparing
+    # "$engine" to the string "docker", which gets three real configurations
+    # wrong: a podman-docker shim host, where /usr/bin/docker execs podman and
+    # the name says nothing (the Fedora Silverblue case ADR-0007 exists for);
+    # real docker on the stock `docker` buildx driver, which cannot export a
+    # cache at all -- CI escapes only because docker/setup-buildx-action
+    # installs a container-driver builder; and BEAM_CONTAINER pointed at an
+    # absolute path or a wrapper, where the name matches nothing and the flags
+    # were dropped while the message claimed otherwise. `buildx inspect` names
+    # the driver without bootstrapping a builder or contacting a registry, so
+    # this costs a process spawn.
+    driver=$("$engine" buildx inspect 2>/dev/null | sed -n 's/^Driver:[[:space:]]*//p' | head -n 1)
+    case "$driver" in
+        # BuildKit-backed drivers (docker-container, kubernetes, remote) all
+        # support the cache exporters; only these two cannot, so name them
+        # rather than allow-listing and hard-failing on a driver we have not
+        # heard of yet.
+        docker)
+            cache_blocker="$engine uses the stock \`docker\` buildx driver, which cannot export a cache -- create a container-driver builder with \`$engine buildx create --use\`" ;;
+        podman)
+            cache_blocker="$engine uses the \`podman\` driver, whose --cache-to takes a registry reference rather than a buildx \`type=local\` exporter" ;;
+        "")
+            cache_blocker="\`$engine buildx inspect\` reported no driver, so $engine has no usable buildx" ;;
+        *)
+            cache_blocker="" ;;
+    esac
+
+    if [ -z "$cache_blocker" ]; then
         mkdir -p "$BEAM_CONTAINER_CACHE_DIR"
         set -- "$@" \
             --cache-from "type=local,src=$BEAM_CONTAINER_CACHE_DIR" \
             --cache-to "type=local,dest=$BEAM_CONTAINER_CACHE_DIR,mode=max"
+    elif [ -n "${CI:-}" ]; then
+        # Locally an unusable cache is a slow rebuild and nothing worse, so the
+        # warning below is the right response. In CI nobody reads a warning on a
+        # green job, so a misconfiguration that costs a full FFmpeg compile on
+        # every run would be indistinguishable from a working cache. The
+        # operator asked for one; refuse to pretend they got it.
+        echo "check:ffmpeg-build: BEAM_CONTAINER_CACHE_DIR is set but cannot be honoured -- $cache_blocker." >&2
+        exit 1
     else
-        # podman's --cache-to takes a registry reference, not a buildx cache
-        # exporter, and rejects `type=local,...` outright. Its own layer cache
-        # already covers the local rebuild loop, so warn and carry on rather
-        # than failing over an optimisation.
-        echo "check:ffmpeg-build: BEAM_CONTAINER_CACHE_DIR ignored -- $engine has no buildx local cache exporter." >&2
+        echo "check:ffmpeg-build: BEAM_CONTAINER_CACHE_DIR ignored -- $cache_blocker. Building without a layer cache." >&2
     fi
 fi
 

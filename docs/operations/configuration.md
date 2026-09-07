@@ -94,7 +94,7 @@ Read by the `mise` tasks, not by the compose files or by application code:
 |---|---|---|
 | `BEAM_COMPOSE` | `podman compose` if `podman` is on `PATH`, else `docker compose` | Container runtime the `dev:*` mise tasks drive. Set it (e.g. `docker compose`) when both are installed but only one is usable. |
 | `BEAM_CONTAINER` | `docker` if it is on `PATH`, else `podman` | Image builder `check:ffmpeg-build` drives. Prefers `docker` -- the reverse of `BEAM_COMPOSE` -- so that where both exist the gate exercises the same `docker buildx build` the release workflow publishes with. |
-| `BEAM_CONTAINER_CACHE_DIR` | unset (no layer cache) | Directory for buildx's local layer cache in `check:ffmpeg-build`. CI points it at a cached path. Docker only -- podman's `--cache-to` takes a registry reference, so the task warns and ignores it there, relying on podman's own layer cache instead. |
+| `BEAM_CONTAINER_CACHE_DIR` | unset (no layer cache) | Directory for buildx's local layer cache in `check:ffmpeg-build`. CI points it at a cached path. Honoured only when the engine's build driver can export a cache, which the task probes with `buildx inspect`: the stock `docker` driver cannot (create a container-driver builder with `docker buildx create --use`; CI gets one from `docker/setup-buildx-action`), and podman cannot either -- its `--cache-to` takes a registry reference, not a buildx `type=local` exporter, so it relies on its own layer cache instead. When the cache cannot be honoured the task warns and builds uncached locally, but **exits non-zero if `CI` is set**: in CI a warning on a green job is unreadable, and silently paying for a full FFmpeg compile every run must not look like success. |
 
 ## Validation
 

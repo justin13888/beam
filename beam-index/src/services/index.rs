@@ -98,8 +98,17 @@ pub enum IndexError {
     LibraryNotFound,
     #[error("Invalid Library ID")]
     InvalidId,
-    /// The message never contains a filesystem path (NFR-108): the path goes
-    /// to a `tracing` field and the admin-log payload, both at the failing site.
+    /// The message never contains a filesystem path (NFR-108). The admin
+    /// boundary relies on that unconditionally, so every site constructing this
+    /// variant must uphold it; `assert_names_no_path` pins all three.
+    ///
+    /// The path itself goes to a structured `tracing` field at the failing
+    /// site. Where it *also* reaches the admin log differs by site, and the
+    /// difference is the caller's, not this variant's: the root-guard site
+    /// writes its own admin-log record, while the two `process_new_file` sites
+    /// are logged later by `report_file_failure` — which runs on the scan path
+    /// only. Reached through `reconcile_path`, a per-file failure is logged by
+    /// `beam-index`'s runtime and never reaches the admin log at all.
     #[error("Path not found: {0}")]
     PathNotFound(String),
 }
@@ -462,7 +471,7 @@ impl LocalIndexService {
             .hash_async(path.to_path_buf())
             .await
             .map_err(|e| {
-                error!("Failed to hash file {}: {}", path.display(), e);
+                error!(path = %path.display(), error = %e, "Failed to hash file");
                 IndexError::PathNotFound(format!("Hash failed: {}", e))
             })?;
 
@@ -2772,8 +2781,12 @@ mod tests {
         let lib_repo = Arc::new(InMemoryLibraryRepository::default());
         let notification_svc = Arc::new(InMemoryNotificationService::new());
 
-        // Insert a library whose root_path does not exist on disk
-        let root_path = PathBuf::from("/tmp/beam-nonexistent-xyzzy-12345");
+        // Insert a library whose root_path does not exist on disk. Derived from
+        // a `TempDir` rather than a hardcoded `/tmp` name so the test does not
+        // rest on an assumption about the host's filesystem: the parent is real
+        // and this run owns it, and the child is guaranteed absent.
+        let dir = TempDir::new().unwrap();
+        let root_path = dir.path().join("beam-nonexistent-root");
         let library = Library {
             id: Uuid::new_v4(),
             name: "Bad Library".to_string(),
@@ -2815,17 +2828,44 @@ mod tests {
         // log below, never through the error message (NFR-108).
         assert_names_no_path(&err, &[&root_path]);
 
-        // An error-level notification must have been published
-        let events = notification_svc.published_events();
-        assert!(events.iter().any(|e| {
-            matches!(e.level, EventLevel::Error) && matches!(e.category, EventCategory::LibraryScan)
-        }));
+        // The compensating disclosure, asserted rather than assumed. Taking the
+        // path out of the client-facing message is only safe because it reaches
+        // the operator here instead, so this is the half of NFR-108's bargain
+        // that has to be pinned: without it, the message could stay dutifully
+        // path-free while the path reached nobody at all.
+        let root = root_path.to_string_lossy();
 
-        // Admin log must also record an error-level LibraryScan entry
+        let events = notification_svc.published_events();
+        let notification = events
+            .iter()
+            .find(|e| {
+                matches!(e.level, EventLevel::Error)
+                    && matches!(e.category, EventCategory::LibraryScan)
+            })
+            .expect("a refused root must publish an error-level LibraryScan event");
+        assert!(
+            notification.message.contains(root.as_ref()),
+            "the notification is where the operator reads the root the scan refused; \
+             {:?} does not name {root:?}",
+            notification.message
+        );
+
         let logs = admin_log_repo.list(10, 0).await.unwrap();
-        assert!(logs.iter().any(|l| {
-            l.level == AdminLogLevel::Error && l.category == AdminLogCategory::LibraryScan
-        }));
+        let entry = logs
+            .iter()
+            .find(|l| {
+                l.level == AdminLogLevel::Error && l.category == AdminLogCategory::LibraryScan
+            })
+            .expect("a refused root must write an error-level LibraryScan admin-log entry");
+        let details = entry
+            .details
+            .as_ref()
+            .expect("the admin-log entry must carry a details payload");
+        assert_eq!(
+            details.get("path").and_then(|p| p.as_str()),
+            Some(root.as_ref()),
+            "the admin-log payload is the operator's other route to the root: {details:?}"
+        );
     }
 
     #[tokio::test]

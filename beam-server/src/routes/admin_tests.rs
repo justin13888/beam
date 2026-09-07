@@ -517,7 +517,6 @@ async fn scanning_a_library_as_an_admin_returns_the_added_count() {
 #[tokio::test]
 async fn scanning_a_library_whose_root_has_gone_is_400_without_a_path() {
     const REASON: &str = "Library root path does not exist or is not a directory";
-    let expected_detail = IndexError::PathNotFound(REASON.into()).to_string();
     let mut mock_index = MockIndexService::new();
     mock_index
         .expect_scan_library()
@@ -551,7 +550,16 @@ async fn scanning_a_library_whose_root_has_gone_is_400_without_a_path() {
         .as_str()
         .expect("problem detail is a string")
         .to_string();
-    assert_eq!(detail, expected_detail);
+    // The subject is the pass-through, so assert the indexer's reason survives
+    // rather than comparing against `IndexError`'s `Display`. The value the
+    // route produces comes from `LibraryError`'s, and the two agree only
+    // because both carry the same format string today -- pinning that
+    // coincidence would fail this test for a change it does not test, and pass
+    // it for one it does.
+    assert!(
+        detail.ends_with(REASON),
+        "the route must pass the indexer's reason through unchanged: {detail:?}"
+    );
     assert!(
         !detail.contains('/'),
         "no filesystem path may reach the client: {detail}"

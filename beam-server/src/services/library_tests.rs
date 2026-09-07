@@ -721,6 +721,14 @@ mod os_path_validator {
                  {message:?} names {path:?}"
             );
         }
+        // Named paths are the ones this call knows about; the separator check
+        // catches a message that grew a *different* path -- which is how these
+        // messages regressed before (ADR-0011). The sibling helper in
+        // `beam-index` makes the same assertion, and these two must not drift.
+        assert!(
+            !message.contains(std::path::MAIN_SEPARATOR),
+            "a client-facing rejection must not carry any path component: {message:?}"
+        );
     }
 
     #[test]

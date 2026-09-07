@@ -808,6 +808,16 @@ printf '%s' "$PR_TITLE" | convco check --from-stdin --strip
 
 [tasks."check:ffmpeg-version"]
 description = "Assert FFmpeg is pinned to the same version everywhere it is built"
+# Four places have to agree, not three. `ffmpeg-next = "9.0"` is a caret
+# requirement, so the manifest string is a floor rather than a pin: cargo is
+# free to resolve 9.1, and ffmpeg-sys-next's minor is not incidental -- its
+# build.rs clones `release/{major}.{minor}` to vendor FFmpeg, so the resolved
+# minor IS the FFmpeg the local `build` feature compiles against (ADR-0007).
+# A lockfile-only bump would therefore move the vendored FFmpeg off the version
+# the Containerfile and the composite action build, while every string this
+# task used to read stayed identical. So the lockfile is read too, and
+# Cargo.lock is in ci.yml's `ffmpeg` path filter and in hk.pkl's glob for this
+# check so that a lockfile-only change actually runs it.
 run = '''
 set -eu
 want=$(sed -n 's/^ffmpeg-next = "\([0-9]*\.[0-9]*\)".*/\1/p' Cargo.toml)
@@ -817,6 +827,24 @@ if [ -z "$want" ]; then
 fi
 
 status=0
+
+# The first `version = ` line after the package's name line -- Cargo.lock
+# always emits name before version within a [[package]] table.
+resolved=$(awk '
+    $0 == "name = \"ffmpeg-sys-next\"" { seen = 1; next }
+    seen && /^version = / { gsub(/[",]/, "", $3); print $3; exit }
+' Cargo.lock)
+if [ -z "$resolved" ]; then
+    echo "Cargo.lock: no ffmpeg-sys-next package entry found" >&2
+    status=1
+else
+    resolved_minor=$(echo "$resolved" | cut -d. -f1,2)
+    if [ "$resolved_minor" != "$want" ]; then
+        echo "Cargo.lock: resolves ffmpeg-sys-next $resolved, which vendors FFmpeg $resolved_minor, but Cargo.toml pins ffmpeg-next $want" >&2
+        status=1
+    fi
+fi
+
 for file in .github/actions/setup-ffmpeg/action.yml beam-server/Containerfile; do
     found=$(grep -oE 'ffmpeg-[0-9]+\.[0-9]+' "$file" | sed 's/^ffmpeg-//' | sort -u)
     if [ -z "$found" ]; then
@@ -833,14 +861,14 @@ for file in .github/actions/setup-ffmpeg/action.yml beam-server/Containerfile; d
 done
 
 if [ "$status" -eq 0 ]; then
-    echo "FFmpeg $want is pinned consistently"
+    echo "FFmpeg $want is pinned consistently (ffmpeg-sys-next $resolved resolved)"
 fi
 exit "$status"
 '''
 
 [tasks."check:ffmpeg-build"]
 description = "Build the ffmpeg-builder stage of beam-server/Containerfile (needs a container runtime)"
-# `check:ffmpeg-version` only proves the three pins read the same string. It
+# `check:ffmpeg-version` only proves the pins agree on a version string. It
 # never compiles anything, so a version that does not configure or `make` on
 # `debian:trixie-slim` -- a different distro and apt set from the composite
 # action's ubuntu-latest build -- passes it. Until this task existed, the only

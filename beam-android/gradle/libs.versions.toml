@@ -3,7 +3,7 @@
 # built against 2.3.20 and Hilt 2.60.1 depends on kotlin-stdlib 2.3.21, so
 # Kotlin 2.4 would put the annotation processors out of contract.
 agp = "9.3.2"
-kotlin = "2.3.21"
+kotlin = "2.4.10"
 ksp = "2.3.11"
 
 # Platform. The SDK now ships minor platform versions, so compileSdk is paired
@@ -40,7 +40,7 @@ hiltNavigationCompose = "1.4.0"
 hiltWork = "1.4.0"
 
 # Libraries
-coil = "3.6.0"
+coil = "3.6.1"
 jna = "5.19.1"
 kotlinxCoroutines = "1.11.0"
 kotlinxSerialization = "1.11.0"

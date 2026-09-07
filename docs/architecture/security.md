@@ -87,10 +87,16 @@ path-traversal bug in file-serving code cannot modify or delete library content.
 writable storage (`BEAM_DATA_DIR`) is a separate location; nothing about playback or indexing writes
 into the library tree. The API reinforces the boundary at another layer: clients only ever see
 opaque IDs (`fileId`, `movieId`), never filesystem paths — every resource reference is resolved
-server-side against the catalog. The AdminAuth-gated operational surface is the one exemption
+server-side against the catalog. The AdminAuth-gated operational surface is a sanctioned exemption
 (NFR-108): admin events, the admin event stream and the admin log carry the configured root path so
 that the operator can fix it. Nothing there is a resource reference — no request path is ever
 resolved from a client-supplied string.
+
+One endpoint escapes both the rule and that exemption: `getLibraryFiles`
+(`GET /v1/libraries/{id}/files`) is `SessionAuth`, so it hands `LibraryFile.path` to any signed-in
+user rather than to an admin. It is tracked as [#168](https://github.com/justin13888/Beam/issues/168)
+and is named here because a reader checking this section against the server would otherwise find it
+contradicted — the opaque-ID claim above describes the intent and every other surface, not that one.
 
 ## Operational hardening
 

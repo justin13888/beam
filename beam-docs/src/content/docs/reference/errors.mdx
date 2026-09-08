@@ -76,11 +76,29 @@ not this error — it returns an empty list.
 
 ### library-path-not-found
 
-**400.** The root path does not exist, or could not be resolved.
+**400.** The library root does not resolve to a directory on the server: it does not exist, it could
+not be resolved, or it resolves to something that is not a directory — a media file rather than the
+folder holding it, most often. Registration and rescan apply the same *directory* rule, so a root
+that fails it cannot be registered and, if it was registered before it changed, cannot be scanned.
+Registration applies two further rules a rescan does not: the root must resolve inside the
+configured video directory (which fails as [library-path-outside-root](#library-path-outside-root)
+instead), and the video directory itself must be readable.
+
+This code also covers one condition that is **not** about the path you sent: if `BEAM_VIDEO_DIR`
+itself cannot be resolved, every attempt to register a library answers with it, whatever path was
+requested. Tell the two apart by the `detail` — `Video directory is not accessible` names the
+server's own configuration, while `Library path does not exist` and `Library root path is not a
+directory` name what you asked for.
 
 **What to do.** The path is resolved **on the server**, not on the machine running the request.
-Check that the directory exists inside the container and that the bind mount is present. A rescan
-can also raise this if the root has gone since the library was registered.
+Check that a *directory* by that name exists inside the container and that the bind mount is
+present. A rescan can also raise this if the root has gone — or been replaced by a file — since the
+library was registered. If the `detail` names the video directory, the requested path is not the
+problem: check that `BEAM_VIDEO_DIR` points at a directory that exists in the container and that its
+mount is present.
+
+A library already registered against a path that has since become a regular file cannot be repaired
+in place — there is no update-library endpoint — so it has to be deleted and registered again.
 
 ### library-path-outside-root
 

@@ -55,7 +55,7 @@ hiltNavigationCompose = "1.4.0"
 hiltWork = "1.4.0"
 
 # Libraries
-coil = "3.6.0"
+coil = "3.6.1"
 jna = "5.19.1"
 kotlinxCoroutines = "1.11.0"
 kotlinxSerialization = "1.11.0"

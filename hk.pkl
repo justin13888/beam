@@ -104,8 +104,12 @@ hooks {
                 glob = List("Cargo.toml", "*/Cargo.toml", "Cargo.lock")
                 check = "mise run rust:lockfile"
             }
+            // Cargo.lock is in the glob because the manifest string is a caret
+            // requirement: the FFmpeg minor that ffmpeg-sys-next vendors is decided
+            // by the resolved version, so a lockfile-only bump moves it without
+            // touching any of the other three files. See the task in mise.toml.
             ["ffmpeg-version"] {
-                glob = List("Cargo.toml", "beam-server/Containerfile", ".github/actions/setup-ffmpeg/action.yml")
+                glob = List("Cargo.toml", "Cargo.lock", "beam-server/Containerfile", ".github/actions/setup-ffmpeg/action.yml")
                 check = "mise run check:ffmpeg-version"
             }
             // Pure YAML parsing -- milliseconds. Narrower than ci.yml's `compose`

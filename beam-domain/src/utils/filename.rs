@@ -30,8 +30,17 @@ static BRACKET_GROUP_REGEX: LazyLock<Regex> =
 static PAREN_GROUP_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\(([^)]*)\)").expect("valid regex"));
 
+/// `\b` so the marker has to start a word. Without it the pattern matched
+/// inside one, and because the search is case-insensitive and takes the first
+/// hit, a title carrying `s<digits>e<digits>` beat the real marker: `as0E0
+/// S01E01` parsed as season 0, episode 0 and dropped `S01E01` entirely.
+///
+/// Only the leading boundary is anchored. A trailing one would reject
+/// `S01E01v2`, and it is not needed: separators normalise to spaces, so the
+/// real marker always starts a word, and where a release suffix contributes a
+/// second candidate (`... x264-S0E0`) the first match is still the real one.
 static EPISODE_MARKER_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)S(\d+)E(\d+)").expect("valid regex"));
+    LazyLock::new(|| Regex::new(r"(?i)\bS(\d+)E(\d+)").expect("valid regex"));
 
 static YEAR_TOKEN_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^(?:19|20)\d{2}$").expect("valid regex"));
@@ -301,6 +310,47 @@ mod tests {
         assert_eq!(result.episode, Some(1));
     }
 
+    /// A title that happens to contain `s<digits>e<digits>` inside a word used
+    /// to win, because the search is case-insensitive and takes the first hit.
+    /// The file was then indexed under season 0, episode 0, silently.
+    #[test]
+    fn a_marker_in_the_title_does_not_beat_the_real_one() {
+        let result = parse_media_filename("as0E0.S01E01.1080p");
+        assert_eq!(result.season, Some(1));
+        assert_eq!(result.episode, Some(1));
+        assert_eq!(result.title, "as0E0");
+    }
+
+    /// The marker has to start a word, so one glued to the end of a title word
+    /// is not a marker at all -- and the stem parses as a title with no
+    /// episode rather than as a wrong episode.
+    #[test]
+    fn a_marker_glued_inside_a_word_is_not_a_marker() {
+        let result = parse_media_filename("Reruns01e02");
+        assert_eq!(result.season, None);
+        assert_eq!(result.episode, None);
+    }
+
+    /// Where a release suffix contributes a second genuine candidate, the
+    /// first -- the conventional position, before the quality noise -- wins.
+    /// Written down rather than derived, because with two markers this is a
+    /// choice the parser makes, not an invariant.
+    #[test]
+    fn the_first_of_two_real_markers_wins() {
+        let result = parse_media_filename("Show.S01E01.1080p.WEB-S00E00");
+        assert_eq!(result.season, Some(1));
+        assert_eq!(result.episode, Some(1));
+    }
+
+    /// A season-0 marker is legitimate -- specials are numbered that way --
+    /// so the fix must not be "reject implausible numbers".
+    #[test]
+    fn a_specials_marker_still_parses() {
+        let result = parse_media_filename("Show.S00E03.1080p");
+        assert_eq!(result.season, Some(0));
+        assert_eq!(result.episode, Some(3));
+    }
+
     #[test]
     fn bracket_groups_stripped() {
         assert_eq!(
@@ -414,10 +464,19 @@ mod properties {
         }
 
         // An `SxxEyy` marker anywhere in the stem must be found, whatever
-        // surrounds it.
+        // surrounds it -- provided nothing around it is also a marker.
+        //
+        // The prefix excludes `e` and `E` so it cannot end a word with one and
+        // synthesise a second marker of its own. Without that the property was
+        // simply false, and said nothing about the parser: with two candidates
+        // in one stem, *which* one wins is a policy the parser chooses (the
+        // first), not an invariant it upholds. That policy is pinned by
+        // `a_marker_in_the_title_does_not_beat_the_real_one` and
+        // `the_first_of_two_real_markers_wins` below, where the expected answer
+        // can be written down instead of derived from the input.
         #[test]
         fn an_embedded_marker_is_always_found(
-            prefix in "[A-Za-z][A-Za-z0-9. ]{0,20}",
+            prefix in "[A-DF-Za-df-z][A-DF-Za-df-z0-9. ]{0,20}",
             season in 1u32..40,
             episode in 1u32..40,
             suffix in "[A-Za-z0-9. -]{0,20}",

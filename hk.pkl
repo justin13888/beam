@@ -190,7 +190,12 @@ hooks {
             // Android ones do: the Swift bindings and the XCFramework are
             // generated from it, so a change there can break the Apple build
             // without touching a Swift file. Every one of these is a no-op on
-            // a non-Darwin host, so a Linux contributor pushes as before.
+            // a non-Darwin host, so a Linux contributor pushes as before -- but
+            // only because each task in the chain carries its own guard.
+            // A guard in a run block does not protect a `depends` edge: mise
+            // resolves dependencies first, so `core:apple`'s Darwin check
+            // cannot stop `core:bindgen:swift` from running. That is why the
+            // bindgen task guards itself rather than relying on its dependent.
             ["apple-lint"] {
                 glob = List("*.swift", "beam-apple/**", "beam-client-core/**")
                 check = "mise run apple:lint"

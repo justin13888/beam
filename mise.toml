@@ -597,6 +597,20 @@ cargo run -p beam-client-core --features uniffi-bindgen --bin uniffi-bindgen -- 
 description = "Generate the Swift bindings and C header for beam-client-core"
 run = '''
 set -eu
+
+# The same guard `core:apple` carries, repeated here because a guard in a run
+# block does not protect a `depends` edge: mise resolves and runs dependencies
+# before the dependent's run block, so `core:apple`'s check never gets to
+# prevent this task. Without this, a Linux contributor pushing a
+# `beam-client-core` change runs a full cdylib build, a `uniffi_bindgen`
+# compile and a Swift generation -- for output only macOS can consume -- from
+# hook steps hk.pkl describes as a no-op. The Swift bindings and the
+# XCFramework that carries them are assembled on Darwin alone.
+if [ "$(uname -s)" != "Darwin" ]; then
+    echo "core:bindgen:swift: skipping -- the Swift bindings are only consumed on macOS."
+    exit 0
+fi
+
 out="${BEAM_SWIFT_BINDINGS_DIR:-beam-apple/Packages/BeamKit/Sources/BeamCoreBindings/Generated}"
 # Derived from the same variable `core:apple` derives it from, so setting
 # BEAM_XCFRAMEWORK_DIR moves both halves together. Hardcoding it here meant
